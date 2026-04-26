@@ -4,7 +4,6 @@ const supabaseUrl = "https://fxqomvjynncaigwoasqp.supabase.co";
 const supabaseKey = "sb_publishable_Mwq88wTGFEHF9zvvM7xWmw_9FQmjlZO";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-
 const ADMIN_EMAIL = "admin@stockware.com"; 
 
 window.login = async () => {
