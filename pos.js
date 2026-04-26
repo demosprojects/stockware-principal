@@ -129,7 +129,7 @@ function renderPosGrid(productsToRender) {
         <p class="text-[10px] text-slate-400 mb-2">Stock: <span class="${stockTotal > 0 ? 'text-green-400' : 'text-red-400'}">${stockTotal}u</span></p>
       </div>
       <div class="flex justify-between items-end">
-        <span class="text-lg font-black text-white">$${Number(prod.price).toLocaleString('es-AR')}</span>
+        <span class="text-sm font-bold text-white">$${Number(prod.price).toLocaleString('es-AR')}</span>
         <div class="bg-slate-700/50 text-slate-300 p-1.5 rounded-md group-hover:bg-indigo-500 group-hover:text-white transition-colors">
            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
         </div>
@@ -224,70 +224,114 @@ function addToCart(productId, variant) {
 
 function renderCart() {
   const container = document.getElementById("cartItems");
+  const mobileContainer = document.getElementById("mobileCartItems");
   const subtotalSpan = document.getElementById("subtotalDisplay");
   const totalSpan = document.getElementById("totalDisplay");
-  
-  container.innerHTML = "";
+  const mobileTotalSpan = document.getElementById("mobileTotalDisplay");
+  const mobileCartCount = document.getElementById("mobileCartCount");
+  const cartBadge = document.getElementById("cartBadge");
+
   let total = 0;
+  const emptyHTML = `
+    <div class="flex flex-col items-center justify-center py-6 text-slate-500 space-y-2 h-full">
+      <svg class="w-7 h-7 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+      <span class="text-xs font-medium">Ticket vacío</span>
+    </div>`;
 
   if (cart.length === 0) {
-    container.innerHTML = `
-      <div class="flex flex-col items-center justify-center h-full text-slate-500 space-y-2 mt-8">
-         <svg class="w-8 h-8 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-         <span class="text-xs font-medium">Ticket vacío</span>
-      </div>`;
-    subtotalSpan.innerText = "$0";
-    totalSpan.innerText = "$0";
+    if (container) container.innerHTML = emptyHTML;
+    if (mobileContainer) mobileContainer.innerHTML = emptyHTML;
+    if (subtotalSpan) subtotalSpan.innerText = "$0";
+    if (totalSpan) totalSpan.innerText = "$0";
+    if (mobileTotalSpan) mobileTotalSpan.innerText = "$0";
+    if (mobileCartCount) mobileCartCount.innerText = "0 items";
+    if (cartBadge) { cartBadge.innerText = "0"; cartBadge.style.display = "none"; }
     updateCheckoutBtn();
     return;
   }
 
+  if (container) container.innerHTML = "";
+  if (mobileContainer) mobileContainer.innerHTML = "";
+
+  let totalItems = 0;
+
   cart.forEach((item, index) => {
     total += item.price * item.qty;
-    const div = document.createElement("div");
-    div.className = "flex justify-between items-start bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 group";
+    totalItems += item.qty;
     const variantText = item.size || item.color ? `<p class="text-[10px] text-slate-400 mt-0.5">${item.size} • ${item.color}</p>` : '';
-
-    div.innerHTML = `
-      <div class="flex-1 pr-2">
-        <h4 class="font-semibold text-white text-xs leading-tight">${item.name}</h4>
-        ${variantText}
-        <div class="text-indigo-400 font-bold text-xs mt-1">$${Number(item.price).toLocaleString('es-AR')}</div>
-      </div>
-      <div class="flex flex-col items-end gap-1.5">
-        <button onclick="removeFromCart(${index})" class="text-slate-500 hover:text-red-400 transition-colors p-0.5">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-        </button>
-        <div class="bg-slate-900 border border-slate-700 rounded-md flex items-center px-1.5 py-0.5 shadow-sm">
-          <span class="text-[10px] font-bold text-white px-0.5">x${item.qty}</span>
+    const itemHTML = `
+      <div class="flex justify-between items-start bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 group mb-2">
+        <div class="flex-1 pr-2">
+          <h4 class="font-semibold text-white text-xs leading-tight">${item.name}</h4>
+          ${variantText}
+          <div class="text-indigo-400 font-bold text-xs mt-1">$${Number(item.price).toLocaleString('es-AR')}</div>
         </div>
-      </div>
-    `;
-    container.appendChild(div);
+        <div class="flex flex-col items-end gap-1.5">
+          <button onclick="removeFromCart(${index})" class="text-slate-500 hover:text-red-400 transition-colors p-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          </button>
+          <div class="bg-slate-900 border border-slate-700 rounded-md flex items-center px-1.5 py-0.5 shadow-sm">
+            <span class="text-[10px] font-bold text-white px-0.5">x${item.qty}</span>
+          </div>
+        </div>
+      </div>`;
+
+    if (container) {
+      const div = document.createElement("div");
+      div.innerHTML = itemHTML;
+      container.appendChild(div.firstElementChild);
+    }
+    if (mobileContainer) {
+      const div = document.createElement("div");
+      div.innerHTML = itemHTML;
+      mobileContainer.appendChild(div.firstElementChild);
+    }
   });
 
-  subtotalSpan.innerText = `$${total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}`;
-  totalSpan.innerText = `$${total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}`;
+  const formatted = `$${total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}`;
+  if (subtotalSpan) subtotalSpan.innerText = formatted;
+  if (totalSpan) totalSpan.innerText = formatted;
+  if (mobileTotalSpan) mobileTotalSpan.innerText = formatted;
+  if (mobileCartCount) mobileCartCount.innerText = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
+  if (cartBadge) {
+    cartBadge.innerText = totalItems > 9 ? '9+' : totalItems;
+    cartBadge.style.display = "flex";
+    cartBadge.classList.add('pulse-once');
+    setTimeout(() => cartBadge.classList.remove('pulse-once'), 400);
+  }
   updateCheckoutBtn();
 }
 
 function updateCheckoutBtn() {
-  const btn = document.getElementById('btnCheckout');
-  if (!btn) return;
-  if (cart.length > 0) {
-    btn.disabled = false;
-    btn.style.pointerEvents = '';
-    btn.className = 'w-full bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2';
-  } else {
-    btn.disabled = true;
-    btn.style.pointerEvents = 'none';
-    btn.className = 'w-full bg-slate-700 text-slate-500 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed';
-  }
+  const btns = [
+    document.getElementById('btnCheckout'),
+    document.getElementById('btnCheckoutMobile'),
+  ];
+  btns.forEach(btn => {
+    if (!btn) return;
+    if (cart.length > 0) {
+      btn.disabled = false;
+      btn.style.pointerEvents = '';
+      btn.className = 'w-full bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2';
+    } else {
+      btn.disabled = true;
+      btn.style.pointerEvents = 'none';
+      btn.className = 'w-full bg-slate-700 text-slate-500 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed';
+    }
+  });
 }
 
 window.removeFromCart = (index) => {
   cart.splice(index, 1);
   renderCart();
+};
+
+window.checkoutMobile = async () => {
+  // Sync mobile payment to desktop select before calling checkout
+  const mobilePay = document.getElementById("paymentMethodMobile");
+  const desktopPay = document.getElementById("paymentMethod");
+  if (mobilePay && desktopPay) desktopPay.value = mobilePay.value;
+  await checkout();
 };
 
 window.checkout = async () => {
@@ -342,6 +386,7 @@ window.checkout = async () => {
   // Renderizar Ticket antes de limpiar el carrito
   renderTicketPreview(saleData, cart, selectedPaymentMethod);
   document.getElementById("successModal").classList.remove("hidden");
+  if (typeof closeMobileCart === 'function') closeMobileCart();
   
   btn.disabled = false;
   btn.innerHTML = "Finalizar compra";
@@ -377,8 +422,10 @@ function renderTicketPreview(sale, cartItems, method) {
     addrEl.innerText = currentStore.address || "";
     addrEl.style.display = currentStore.address ? "" : "none";
 
-    const dateObj = new Date(sale.created_at);
-    document.getElementById("tkDate").innerText = dateObj.toLocaleDateString('es-AR') + " " + dateObj.toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
+    const rawTsTicket = sale.created_at.endsWith('Z') || sale.created_at.includes('+') ? sale.created_at : sale.created_at + 'Z';
+    const dateObj = new Date(rawTsTicket);
+    const tzAR = { timeZone: 'America/Argentina/Buenos_Aires' };
+    document.getElementById("tkDate").innerText = dateObj.toLocaleDateString('es-AR', tzAR) + " " + dateObj.toLocaleTimeString('es-AR', { ...tzAR, hour: '2-digit', minute:'2-digit', hour12: false });
     document.getElementById("tkId").innerText = sale.id.split('-')[0].toUpperCase();
     document.getElementById("tkPayment").innerText = method;
 
@@ -542,37 +589,35 @@ function renderProductsTable() {
     const stockColor = stockTotal === 0 ? 'text-red-400 bg-red-500/10 border-red-500/20' : stockTotal <= 5 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
 
     const card = document.createElement("div");
-    card.className = "bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col hover:border-slate-700 transition-all group";
+    card.className = "bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col justify-between transition-all";
 
     const imgHtml = prod.image_url
-      ? `<img src="${prod.image_url}" alt="${prod.name}" class="w-full h-full object-cover" onerror="this.parentElement.className=this.parentElement.className.replace('bg-slate-800','bg-slate-900'); this.replaceWith(Object.assign(document.createElementNS('http://www.w3.org/2000/svg','svg'), {innerHTML: '<path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.2\\' d=\\'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\\'></path>', className: 'w-10 h-10 text-slate-700', setAttribute: (k,v) => null}))">`
-      : `<svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>`;
+      ? `<img src="${prod.image_url}" alt="${prod.name}" class="w-full h-full object-contain p-1" onerror="this.parentElement.innerHTML='<svg class=\\'w-10 h-10 text-slate-600\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.2\\' d=\\'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\\'></path></svg>'">`
+      : `<svg class="w-10 h-10 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>`;
 
-    const variantBadges = prod.variants.slice(0, 3).map(v =>
-      `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-800 text-slate-400 border border-slate-700/50">${v.size}${v.color ? ' · ' + v.color : ''}</span>`
+    const variantBadges = prod.variants.slice(0, 2).map(v =>
+      `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-900 text-slate-400 border border-slate-700/50">${v.size}${v.color ? ' · ' + v.color : ''}</span>`
     ).join('');
-    const extraVariants = prod.variants.length > 3 ? `<span class="text-[9px] text-slate-600">+${prod.variants.length - 3} más</span>` : '';
+    const extraVariants = prod.variants.length > 2 ? `<span class="text-[9px] text-slate-600">+${prod.variants.length - 2} más</span>` : '';
 
     card.innerHTML = `
-      <div class="relative h-36 bg-slate-800 flex items-center justify-center overflow-hidden">
-        ${imgHtml}
-        <div class="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onclick="openEditProductModal('${prod.id}')" class="w-7 h-7 bg-slate-900/90 hover:bg-indigo-500 text-slate-300 hover:text-white rounded-md flex items-center justify-center transition-all border border-slate-700 hover:border-indigo-500" title="Editar">
+      <div>
+        <div class="w-full h-36 bg-slate-900 rounded-lg mb-3 flex items-center justify-center text-slate-700 overflow-hidden">
+          ${imgHtml}
+        </div>
+        <h3 class="font-semibold text-sm text-white leading-tight mb-1 truncate">${prod.name}</h3>
+        <p class="text-sm font-bold text-indigo-400 mb-2">$${Number(prod.price).toLocaleString('es-AR')}</p>
+        <div class="flex flex-wrap gap-1 mb-2">${variantBadges}${extraVariants}</div>
+      </div>
+      <div class="flex items-center justify-between pt-2 border-t border-slate-700/50">
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${stockColor}">${stockTotal}u</span>
+        <div class="flex gap-1.5">
+          <button onclick="openEditProductModal('${prod.id}')" class="w-7 h-7 bg-slate-700 hover:bg-indigo-500 text-slate-300 hover:text-white rounded-md flex items-center justify-center transition-all border border-slate-600 hover:border-indigo-500" title="Editar">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
           </button>
-          <button onclick="deleteProduct('${prod.id}')" class="w-7 h-7 bg-slate-900/90 hover:bg-red-500 text-slate-300 hover:text-white rounded-md flex items-center justify-center transition-all border border-slate-700 hover:border-red-500" title="Eliminar">
+          <button onclick="deleteProduct('${prod.id}')" class="w-7 h-7 bg-slate-700 hover:bg-red-500 text-slate-300 hover:text-white rounded-md flex items-center justify-center transition-all border border-slate-600 hover:border-red-500" title="Eliminar">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
           </button>
-        </div>
-      </div>
-      <div class="p-3.5 flex flex-col gap-2 flex-1">
-        <div>
-          <h3 class="font-bold text-white text-sm truncate">${prod.name}</h3>
-          <p class="text-lg font-black text-indigo-400 leading-tight">$${Number(prod.price).toLocaleString('es-AR')}</p>
-        </div>
-        <div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-800">
-          <div class="flex flex-wrap gap-1">${variantBadges}${extraVariants}</div>
-          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${stockColor} ml-1 flex-shrink-0">${stockTotal}u</span>
         </div>
       </div>
     `;
@@ -796,7 +841,6 @@ function setupImagePreview(inputId, previewId) {
 }
 setupImagePreview("pImageUrl", "pImagePreview");
 setupImagePreview("editPImageUrl", "editPImagePreview");
-setupImagePreview("confQr", "confQrPreview");
 setupImagePreview("confLogo", "confLogoPreview");
 
 // ==========================================
@@ -818,17 +862,25 @@ window.setSalesPeriod = (period) => {
 window.applySalesFilters = () => {
   const paymentFilter = document.getElementById("salesPaymentFilter")?.value || '';
   const now = new Date();
+  const AR_TZ = 'America/Argentina/Buenos_Aires';
+
+  // Helper: get YYYY-MM-DD string in Argentina timezone
+  const toARDate = (d) => d.toLocaleDateString('en-CA', { timeZone: AR_TZ }); // en-CA gives YYYY-MM-DD
+  const todayAR = toARDate(now);
 
   let filtered = allSales.filter(sale => {
-    const saleDate = new Date(sale.created_at);
+    const rawTs = sale.created_at.endsWith('Z') || sale.created_at.includes('+') ? sale.created_at : sale.created_at + 'Z';
+    const saleDate = new Date(rawTs);
 
     if (salesPeriod === 'today') {
-      if (saleDate.toDateString() !== now.toDateString()) return false;
+      if (toARDate(saleDate) !== todayAR) return false;
     } else if (salesPeriod === 'week') {
       const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
       if (saleDate < weekAgo) return false;
     } else if (salesPeriod === 'month') {
-      if (saleDate.getMonth() !== now.getMonth() || saleDate.getFullYear() !== now.getFullYear()) return false;
+      const saleDateAR = saleDate.toLocaleDateString('es-AR', { timeZone: AR_TZ, month: 'numeric', year: 'numeric' });
+      const nowDateAR = now.toLocaleDateString('es-AR', { timeZone: AR_TZ, month: 'numeric', year: 'numeric' });
+      if (saleDateAR !== nowDateAR) return false;
     }
 
     if (paymentFilter && sale.payment_method !== paymentFilter) return false;
@@ -887,9 +939,12 @@ function renderSalesList(sales) {
   };
 
   sales.forEach((sale, idx) => {
-    const date = new Date(sale.created_at);
-    const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    // Forzar parseo UTC: Supabase a veces devuelve sin Z, haciendo que new Date() lo tome como hora local
+    const rawTs = sale.created_at.endsWith('Z') || sale.created_at.includes('+') ? sale.created_at : sale.created_at + 'Z';
+    const date = new Date(rawTs);
+    const tzOptions = { timeZone: 'America/Argentina/Buenos_Aires' };
+    const dateStr = date.toLocaleDateString('es-AR', { ...tzOptions, day: '2-digit', month: '2-digit', year: '2-digit' });
+    const timeStr = date.toLocaleTimeString('es-AR', { ...tzOptions, hour: '2-digit', minute: '2-digit', hour12: false });
     const items = sale.sale_items || [];
     const totalUnits = items.reduce((s, i) => s + (i.quantity || 0), 0);
     const method = sale.payment_method || 'N/A';
@@ -916,8 +971,8 @@ function renderSalesList(sales) {
 
     const row = document.createElement("div");
     row.innerHTML = `
-      <div id="${rowId}" class="grid grid-cols-12 px-5 py-3.5 items-center hover:bg-slate-800/40 transition-colors cursor-pointer group" onclick="toggleSaleDetail('${sale.id}')">
-        <span class="col-span-1 text-xs font-bold text-slate-600">#${sales.length - idx}</span>
+      <div id="${rowId}" class="hidden md:grid grid-cols-12 px-4 py-3.5 items-center hover:bg-slate-800/40 transition-colors cursor-pointer group" onclick="toggleSaleDetail('${sale.id}')">
+        <span class="col-span-1 text-xs font-bold text-slate-600">#${idx + 1}</span>
         <div class="col-span-3">
           <p class="text-xs font-semibold text-white">${dateStr}</p>
           <p class="text-[10px] text-slate-500">${timeStr}</p>
@@ -930,10 +985,25 @@ function renderSalesList(sales) {
         <span class="col-span-2 text-xs text-slate-300">${totalUnits} u.</span>
         <span class="col-span-2 text-right text-sm font-bold text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
         <div class="col-span-1 flex justify-end">
-          <svg id="chevron-${sale.id}" class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          <svg id="chevron-${sale.id}" class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </div>
       </div>
-      <div id="${detailId}" class="hidden px-5 pb-4 pt-1 bg-slate-800/20 border-t border-slate-800/50">
+      <div class="md:hidden flex items-center justify-between px-4 py-3 cursor-pointer active:bg-slate-800/40 transition" onclick="toggleSaleDetail('${sale.id}')">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="text-[10px] font-bold text-slate-600 flex-shrink-0">#${idx + 1}</span>
+          <div class="min-w-0">
+            <p class="text-xs font-semibold text-white">${dateStr} <span class="text-slate-500 font-normal">${timeStr}</span></p>
+            <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${methodColor} mt-0.5">
+              ${methodIcon} ${method}
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="text-sm font-black text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+          <svg id="chevron-${sale.id}-m" class="w-4 h-4 text-slate-600 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+      </div>
+      <div id="${detailId}" class="hidden px-4 pb-4 pt-1 bg-slate-800/20 border-t border-slate-800/50">
         <div class="bg-slate-900/80 rounded-lg p-3 border border-slate-800">
           <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Detalle de ítems</p>
           <div class="divide-y divide-slate-800/50">${itemsHtml}</div>
@@ -941,7 +1011,7 @@ function renderSalesList(sales) {
             <span class="text-xs text-slate-400">Total</span>
             <div class="flex items-center gap-3">
               <button onclick="reprintTicket('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 rounded-lg transition-all">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Ver ticket
               </button>
               <span class="text-sm font-black text-indigo-400">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
@@ -957,14 +1027,15 @@ function renderSalesList(sales) {
 window.toggleSaleDetail = (saleId) => {
   const detail = document.getElementById(`sale-detail-${saleId}`);
   const chevron = document.getElementById(`chevron-${saleId}`);
+  const chevronM = document.getElementById(`chevron-${saleId}-m`);
   if (!detail) return;
 
   const isHidden = detail.classList.contains("hidden");
   detail.classList.toggle("hidden", !isHidden);
 
-  if (chevron) {
-    chevron.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
-  }
+  const rotate = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+  if (chevron) chevron.style.transform = rotate;
+  if (chevronM) chevronM.style.transform = rotate;
 };
 
 async function loadSales() {
@@ -1022,12 +1093,8 @@ window.loadConfig = async () => {
   document.getElementById("configProgressBar").className = `h-full rounded-full ${barColor}`;
   document.getElementById("configProgressBar").style.width = `${progressPercent}%`;
 
-  document.getElementById("confAlias").value = store.alias || "";
-  document.getElementById("confCbu").value = store.cbu || "";
   document.getElementById("confLogo").value = store.logo_url || "";
   document.getElementById("confLogo").dispatchEvent(new Event('input'));
-  document.getElementById("confQr").value = store.qr_url || "";
-  document.getElementById("confQr").dispatchEvent(new Event('input'));
   document.getElementById("confPhone").value = store.phone || "";
   document.getElementById("confInstagram").value = store.instagram || "";
   document.getElementById("confAddress").value = store.address || "";
@@ -1037,10 +1104,7 @@ window.saveConfig = async () => {
   const btn = document.getElementById("btnSaveConfig");
   const originalText = btn.innerText;
 
-  const alias = document.getElementById("confAlias").value.trim();
-  const cbu = document.getElementById("confCbu").value.trim();
   const logo_url = document.getElementById("confLogo").value.trim() || null;
-  const qr_url = document.getElementById("confQr").value.trim() || null;
   const phone = document.getElementById("confPhone").value.trim();
   const instagram = document.getElementById("confInstagram").value.trim();
   const address = document.getElementById("confAddress").value.trim();
@@ -1050,7 +1114,7 @@ window.saveConfig = async () => {
 
   const { error } = await supabase
     .from("stores")
-    .update({ alias, cbu, logo_url, qr_url, phone, instagram, address })
+    .update({ logo_url, phone, instagram, address })
     .eq("id", storeId);
 
   btn.innerText = originalText;
@@ -1062,7 +1126,7 @@ window.saveConfig = async () => {
     return;
   }
 
-  currentStore = { ...currentStore, alias, cbu, logo_url, qr_url, phone, instagram, address };
+  currentStore = { ...currentStore, logo_url, phone, instagram, address };
   showToast("Configuración guardada", "success");
 };
 
