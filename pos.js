@@ -215,11 +215,12 @@ window.switchView = (view) => {
   document.getElementById("posView").classList.add("hidden");
   document.getElementById("productsView").classList.add("hidden");
   document.getElementById("salesView").classList.add("hidden");
+  document.getElementById("cashView").classList.add("hidden");
   document.getElementById("configView").classList.add("hidden");
   
   document.getElementById(`${view}View`).classList.remove("hidden");
 
-  const navIds = ['nav-pos', 'nav-products', 'nav-sales', 'nav-config'];
+  const navIds = ['nav-pos', 'nav-products', 'nav-sales', 'nav-cash', 'nav-config'];
   navIds.forEach(id => {
     const el = document.getElementById(id);
     if(el) el.className = "w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm font-medium border border-transparent transition-all";
@@ -232,6 +233,7 @@ window.switchView = (view) => {
 
   if (view === "sales") loadSales();
   if (view === "config") loadConfig();
+  if (view === "cash") initCashView();
 };
 
 // ==========================================
@@ -1169,6 +1171,10 @@ function renderSalesList(sales) {
           <div class="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-700">
             <span class="text-xs text-slate-400">Total</span>
             <div class="flex items-center gap-3">
+              <button onclick="anularVenta('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-red-400 hover:text-white hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1.5 rounded-lg transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                Anular
+              </button>
               <button onclick="reprintTicket('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 rounded-lg transition-all">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Ver ticket
@@ -1257,6 +1263,8 @@ window.loadConfig = async () => {
   document.getElementById("confPhone").value = store.phone || "";
   document.getElementById("confInstagram").value = store.instagram || "";
   document.getElementById("confAddress").value = store.address || "";
+
+  loadPaymentMethods();
 };
 
 window.saveConfig = async () => {
@@ -1294,6 +1302,390 @@ window.logout = async () => {
   localStorage.removeItem("store_id");
   window.location.href = "index.html";
 };
+
+// ==========================================
+// 10. ANULAR VENTA
+// ==========================================
+window.anularVenta = async (saleId) => {
+  const confirmed = await showConfirm('Anular venta', '¿Confirmás la anulación? Se repondrá el stock de todos los ítems.');
+  if (!confirmed) return;
+
+  // Obtener items de la venta para reponer stock
+  const { data: items, error: itemsErr } = await supabase
+    .from('sale_items')
+    .select('variant_id, quantity')
+    .eq('sale_id', saleId);
+
+  if (itemsErr) { showToast('Error al obtener ítems de la venta.', 'error'); return; }
+
+  // Reponer stock variante por variante
+  for (const item of items) {
+    if (!item.variant_id) continue;
+    const { data: variant } = await supabase
+      .from('variants')
+      .select('stock')
+      .eq('id', item.variant_id)
+      .single();
+    if (variant) {
+      await supabase
+        .from('variants')
+        .update({ stock: variant.stock + item.quantity })
+        .eq('id', item.variant_id);
+    }
+  }
+
+  // Marcar la venta como anulada
+  const { error: voidErr } = await supabase
+    .from('sales')
+    .update({ status: 'anulada' })
+    .eq('id', saleId);
+
+  if (voidErr) { showToast('Error al anular la venta.', 'error'); return; }
+
+  showToast('Venta anulada y stock repuesto.', 'success');
+  loadSales();
+  loadProducts();
+};
+
+// ==========================================
+// 11. MÓDULO CAJA DIARIA
+// ==========================================
+function initCashView() {
+  const picker = document.getElementById('cashDatePicker');
+  if (!picker.value) {
+    // Fecha de hoy en AR (YYYY-MM-DD)
+    const today = new Date();
+    const offset = today.getTimezoneOffset();
+    const local = new Date(today.getTime() - offset * 60000);
+    picker.value = local.toISOString().split('T')[0];
+  }
+  loadCashDay();
+}
+
+window.loadCashDay = async () => {
+  const picker = document.getElementById('cashDatePicker');
+  const dateStr = picker.value;
+  if (!dateStr) return;
+
+  const loadingEl = document.getElementById('cashLoadingState');
+  const emptyEl   = document.getElementById('cashEmptyState');
+  const listEl    = document.getElementById('cashSalesList');
+
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (emptyEl)   emptyEl.classList.add('hidden');
+  listEl.innerHTML = '';
+
+  // Construir rango del día en UTC considerando TZ Argentina (UTC-3)
+  const start = new Date(dateStr + 'T00:00:00-03:00').toISOString();
+  const end   = new Date(dateStr + 'T23:59:59-03:00').toISOString();
+
+  const { data, error } = await supabase
+    .from('sales')
+    .select(`*, sale_items(id, quantity, price, variants(id, size, color, products(id, name)))`)
+    .eq('store_id', storeId)
+    .neq('status', 'anulada')
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at', { ascending: false });
+
+  if (loadingEl) loadingEl.classList.add('hidden');
+
+  if (error) { console.error('loadCashDay error:', error); showToast('Error cargando caja.', 'error'); return; }
+
+  const sales = data || [];
+
+  // Actualizar label
+  const labelEl = document.getElementById('cashDateLabel');
+  if (labelEl) {
+    const d = new Date(dateStr + 'T12:00:00');
+    labelEl.textContent = d.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  if (sales.length === 0) {
+    if (emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.classList.add('flex'); }
+    renderCashKPIs([]);
+    renderCashBreakdown([]);
+    document.getElementById('cashSalesCount').textContent = '0 registros';
+    return;
+  }
+
+  renderCashKPIs(sales);
+  renderCashBreakdown(sales);
+  document.getElementById('cashSalesCount').textContent = `${sales.length} registro${sales.length !== 1 ? 's' : ''}`;
+
+  const paymentColors = {
+    'Efectivo': 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    'Transferencia': 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+    'Tarjeta de Débito': 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    'Tarjeta de Crédito': 'text-violet-400 bg-violet-500/10 border-violet-500/20',
+    'Otros': 'text-slate-300 bg-slate-500/10 border-slate-500/20',
+  };
+
+  sales.forEach((sale, idx) => {
+    const rawTs = sale.created_at.endsWith('Z') || sale.created_at.includes('+') ? sale.created_at : sale.created_at + 'Z';
+    const date = new Date(rawTs);
+    const tz = { timeZone: 'America/Argentina/Buenos_Aires' };
+    const timeStr = date.toLocaleTimeString('es-AR', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
+    const method = sale.payment_method || 'N/A';
+    const methodColor = paymentColors[method] || 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+    const totalUnits = (sale.sale_items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+    const detailId = `cash-detail-${sale.id}`;
+
+    const itemsHtml = (sale.sale_items || []).length > 0
+      ? sale.sale_items.map(item => {
+          const variantLabel = [item.variants?.size, item.variants?.color].filter(Boolean).join(' · ');
+          const productName = item.variants?.products?.name || 'Producto';
+          return `<div class="flex items-center justify-between py-1 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 bg-slate-800 rounded flex items-center justify-center text-[9px] font-bold text-slate-400">${item.quantity}</span>
+              <span class="text-slate-300">${productName}</span>
+              ${variantLabel ? `<span class="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">${variantLabel}</span>` : ''}
+            </div>
+            <span class="text-slate-400 font-medium">$${Number(item.price).toLocaleString('es-AR')}</span>
+          </div>`;
+        }).join('')
+      : `<p class="text-xs text-slate-600 py-1">Sin detalle.</p>`;
+
+    const row = document.createElement('div');
+    row.innerHTML = `
+      <div class="hidden md:grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-800/40 transition-colors cursor-pointer group" onclick="toggleCashDetail('${sale.id}')">
+        <span class="col-span-1 text-xs font-bold text-slate-600">#${idx + 1}</span>
+        <span class="col-span-3 text-xs font-semibold text-white">${timeStr}</span>
+        <div class="col-span-3">
+          <span class="inline-flex items-center text-[11px] font-semibold px-2 py-1 rounded-md border ${methodColor}">${method}</span>
+        </div>
+        <span class="col-span-2 text-xs text-slate-300">${totalUnits} u.</span>
+        <span class="col-span-2 text-right text-sm font-bold text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+        <div class="col-span-1 flex justify-end">
+          <svg id="cash-chevron-${sale.id}" class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+      </div>
+      <div class="md:hidden flex items-center justify-between px-4 py-3 cursor-pointer active:bg-slate-800/40 transition" onclick="toggleCashDetail('${sale.id}')">
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] font-bold text-slate-600 flex-shrink-0">#${idx + 1}</span>
+          <div>
+            <p class="text-xs font-semibold text-white">${timeStr}</p>
+            <span class="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border ${methodColor} mt-0.5">${method}</span>
+          </div>
+        </div>
+        <span class="text-sm font-black text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+      </div>
+      <div id="${detailId}" class="hidden px-4 pb-4 pt-1 bg-slate-800/20 border-t border-slate-800/50">
+        <div class="bg-slate-900/80 rounded-lg p-3 border border-slate-800">
+          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Ítems</p>
+          <div class="divide-y divide-slate-800/50">${itemsHtml}</div>
+          <div class="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-700">
+            <button onclick="anularVenta('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-red-400 hover:text-white hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1.5 rounded-lg transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              Anular
+            </button>
+            <span class="text-sm font-black text-indigo-400">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+          </div>
+        </div>
+      </div>
+    `;
+    listEl.appendChild(row);
+  });
+};
+
+window.toggleCashDetail = (saleId) => {
+  const detail = document.getElementById(`cash-detail-${saleId}`);
+  const chevron = document.getElementById(`cash-chevron-${saleId}`);
+  if (!detail) return;
+  const isHidden = detail.classList.contains('hidden');
+  detail.classList.toggle('hidden', !isHidden);
+  if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+};
+
+function renderCashKPIs(sales) {
+  const total = sales.reduce((a, s) => a + Number(s.total), 0);
+  const units = sales.reduce((a, s) => a + (s.sale_items || []).reduce((b, i) => b + (i.quantity || 0), 0), 0);
+  const avg = sales.length > 0 ? total / sales.length : 0;
+  document.getElementById('cash-kpi-count').textContent = sales.length;
+  document.getElementById('cash-kpi-total').textContent = '$' + total.toLocaleString('es-AR', { minimumFractionDigits: 0 });
+  document.getElementById('cash-kpi-avg').textContent = '$' + Math.round(avg).toLocaleString('es-AR');
+  document.getElementById('cash-kpi-units').textContent = units;
+}
+
+function renderCashBreakdown(sales) {
+  const container = document.getElementById('cashPaymentBreakdown');
+  if (!container) return;
+  if (sales.length === 0) {
+    container.innerHTML = '<p class="text-xs text-slate-600">Sin ventas en este período.</p>';
+    return;
+  }
+  const byMethod = {};
+  sales.forEach(s => {
+    const m = s.payment_method || 'Sin especificar';
+    if (!byMethod[m]) byMethod[m] = { count: 0, total: 0 };
+    byMethod[m].count++;
+    byMethod[m].total += Number(s.total);
+  });
+  const grandTotal = sales.reduce((a, s) => a + Number(s.total), 0);
+  const paymentColors = {
+    'Efectivo': 'bg-emerald-500',
+    'Transferencia': 'bg-blue-500',
+    'Tarjeta de Débito': 'bg-amber-500',
+    'Tarjeta de Crédito': 'bg-violet-500',
+  };
+  container.innerHTML = Object.entries(byMethod)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([method, data]) => {
+      const pct = grandTotal > 0 ? Math.round((data.total / grandTotal) * 100) : 0;
+      const barColor = paymentColors[method] || 'bg-slate-500';
+      return `
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-slate-300">${method}</span>
+              <span class="text-[10px] text-slate-500">${data.count} venta${data.count !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-slate-500">${pct}%</span>
+              <span class="text-xs font-bold text-white">$${data.total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+            </div>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5">
+            <div class="${barColor} h-1.5 rounded-full transition-all duration-500" style="width:${pct}%"></div>
+          </div>
+        </div>`;
+    }).join('');
+}
+
+// ==========================================
+// 12. MÉTODOS DE PAGO EN CONFIGURACIÓN
+// ==========================================
+// Tabla: store_payment_methods (store_id, name, position)
+// Fallback: si la tabla no existe, usa lista hardcodeada localmente en stores.payment_methods (jsonb)
+
+const DEFAULT_PAYMENT_METHODS = ['Efectivo', 'Transferencia', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Otros'];
+
+async function loadPaymentMethods() {
+  const list = document.getElementById('paymentMethodsList');
+  if (!list) return;
+
+  let methods = [];
+
+  // Intentar leer de store_payment_methods
+  const { data, error } = await supabase
+    .from('store_payment_methods')
+    .select('id, name')
+    .eq('store_id', storeId)
+    .order('position', { ascending: true });
+
+  if (!error && data && data.length > 0) {
+    methods = data.map(r => r.name);
+  } else {
+    // Fallback: campo payment_methods jsonb en stores
+    const { data: storeData } = await supabase
+      .from('stores')
+      .select('payment_methods')
+      .eq('id', storeId)
+      .single();
+    methods = storeData?.payment_methods || DEFAULT_PAYMENT_METHODS;
+  }
+
+  renderPaymentMethodRows(methods);
+}
+
+function renderPaymentMethodRows(methods) {
+  const list = document.getElementById('paymentMethodsList');
+  list.innerHTML = '';
+  methods.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2 pm-row';
+    div.innerHTML = `
+      <input type="text" value="${m}" class="pm-input flex-1 p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+      <button onclick="this.closest('.pm-row').remove()" class="w-8 h-8 flex-shrink-0 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg border border-transparent hover:border-red-500/30 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+window.addPaymentMethodRow = () => {
+  const list = document.getElementById('paymentMethodsList');
+  const div = document.createElement('div');
+  div.className = 'flex items-center gap-2 pm-row';
+  div.innerHTML = `
+    <input type="text" placeholder="Ej: Mercado Pago" class="pm-input flex-1 p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+    <button onclick="this.closest('.pm-row').remove()" class="w-8 h-8 flex-shrink-0 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg border border-transparent hover:border-red-500/30 transition-all">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  `;
+  list.appendChild(div);
+  div.querySelector('.pm-input').focus();
+};
+
+window.savePaymentMethods = async () => {
+  const methods = [...document.querySelectorAll('.pm-input')]
+    .map(i => i.value.trim())
+    .filter(Boolean);
+
+  if (methods.length === 0) {
+    showAlert('Error', 'Necesitás al menos un método de pago habilitado.', 'error');
+    return;
+  }
+
+  const btn = document.querySelector('[onclick="savePaymentMethods()"]');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = 'Guardando...'; btn.disabled = true; }
+
+  // Intentar guardar en store_payment_methods
+  // 1. Eliminar los anteriores
+  const { error: delErr } = await supabase
+    .from('store_payment_methods')
+    .delete()
+    .eq('store_id', storeId);
+
+  let savedToTable = !delErr;
+
+  if (savedToTable) {
+    // 2. Insertar los nuevos
+    const rows = methods.map((name, i) => ({ store_id: storeId, name, position: i }));
+    const { error: insErr } = await supabase.from('store_payment_methods').insert(rows);
+    if (insErr) savedToTable = false;
+  }
+
+  if (!savedToTable) {
+    // Fallback: guardar en stores.payment_methods jsonb
+    const { error: updateErr } = await supabase
+      .from('stores')
+      .update({ payment_methods: methods })
+      .eq('id', storeId);
+    if (updateErr) {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+      showToast('Error al guardar métodos de pago.', 'error');
+      return;
+    }
+  }
+
+  if (btn) { btn.textContent = origText; btn.disabled = false; }
+
+  // Actualizar selectores de pago en el DOM
+  updatePaymentSelects(methods);
+  showToast('Métodos de pago guardados.', 'success');
+};
+
+function updatePaymentSelects(methods) {
+  const selects = ['paymentMethod', 'paymentMethodMobile', 'salesPaymentFilter'];
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const currentVal = sel.value;
+    const isFilter = id === 'salesPaymentFilter';
+    sel.innerHTML = isFilter ? '<option value="">Todos los medios</option>' : '';
+    methods.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      sel.appendChild(opt);
+    });
+    // Restaurar selección si sigue disponible
+    if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
+  });
+}
 
 // ==========================================
 // MODAL ALERT & CONFIRM
