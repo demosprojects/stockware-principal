@@ -8,13 +8,16 @@ const storeId = localStorage.getItem("store_id");
 let products = [];
 let cart = [];
 let currentSelectedProduct = null;
-let currentStore = null; 
+let currentStore = null;
+let isSubscriptionActive = true;
+let allSales = [];
+let salesPeriod = 'today';
 
 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
 document.getElementById('currentDateDisplay').innerText = new Intl.DateTimeFormat('es-AR', options).format(new Date());
 
 // ==========================================
-// 1. INICIALIZACIÓN Y SEGURIDAD
+// 1. INICIALIZACIÓN Y SEGURIDAD (CON VERIFICACIÓN DE SUSCRIPCIÓN)
 // ==========================================
 async function initPos() {
   const { data: userData } = await supabase.auth.getUser();
@@ -34,15 +37,175 @@ async function initPos() {
   const isExpired = store?.expires_at && new Date(store.expires_at) < now;
 
   if (error || !store.active || isExpired) {
-    showAlert('Acceso denegado', 'Tienda inactiva o suscripción vencida. Contactá al administrador.', 'error');
-    await supabase.auth.signOut();
-    window.location.href = "index.html";
+    isSubscriptionActive = false;
+    currentStore = store; // necesario para que generatePaymentLink tenga los datos de la tienda
+    showSuspensionOverlay();
     return;
   }
 
+  isSubscriptionActive = true;
   currentStore = store;
   document.getElementById("storeNameDisplay").innerText = store.name;
   loadProducts();
+}
+
+function showSuspensionOverlay() {
+  const overlay = document.getElementById("suspensionOverlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
+  const mainContent = document.querySelector("main");
+  if (mainContent) {
+    mainContent.style.pointerEvents = "none";
+    mainContent.style.opacity = "0.3";
+  }
+
+  // Generar QR automáticamente al mostrar el overlay
+  setTimeout(() => fetchPaymentPreference(), 300);
+}
+
+function hideSuspensionOverlay() {
+  const overlay = document.getElementById("suspensionOverlay");
+  if (overlay) overlay.classList.add("hidden");
+  
+  const mainContent = document.querySelector("main");
+  if (mainContent) {
+    mainContent.style.pointerEvents = "";
+    mainContent.style.opacity = "";
+  }
+}
+
+window.copyText = (text) => {
+  navigator.clipboard.writeText(text);
+  showToast("Copiado al portapapeles", "success");
+};
+
+window.copyPaymentInfo = () => {
+  const info = `DATOS DE PAGO STOCKWARE\n\nAlias: STOCKWARE.POS\nCBU: 0000003100076543210001\nMonto: $15.000\n\nEnviar comprobante a WhatsApp: +54 9 3644 539325`;
+  navigator.clipboard.writeText(info);
+  showToast("Datos de pago copiados", "success");
+};
+
+// Guarda el intervalo de polling para poder cancelarlo si es necesario
+let _paymentPollingInterval = null;
+
+async function fetchPaymentPreference() {
+  if (!currentStore) return;
+
+  const btn = document.getElementById("btnMercadoPago");
+  const qrSpinner = document.getElementById("qrLoadingSpinner");
+  const qrImage   = document.getElementById("qrCodeImage");
+  const qrError   = document.getElementById("qrError");
+
+  // Mostrar spinner, ocultar QR/error
+  if (qrSpinner) qrSpinner.classList.remove("hidden");
+  if (qrImage)  qrImage.classList.add("hidden");
+  if (qrError)  qrError.classList.add("hidden");
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Generando...`; }
+
+  try {
+    const response = await fetch("https://delicate-shape-d593.leonelgalazzoaz.workers.dev/create-preference", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        storeId: storeId,
+        storeName: currentStore.name,
+        email: currentStore.email
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.init_point) {
+      if (qrSpinner) qrSpinner.classList.add("hidden");
+
+      const qrContainer = document.getElementById("qrCodeContainer");
+      if (qrContainer && qrImage && typeof QRCode !== "undefined") {
+        qrContainer.innerHTML = "";
+        // qr_data = string EMV del instore API → reconocido por todas las apps de pago
+        // Si no viene (error en el Worker), fallback al init_point
+        const qrText = data.qr_data || data.init_point;
+        try {
+          new QRCode(qrContainer, {
+            text: qrText,
+            width: 144,
+            height: 144,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+          });
+          qrImage.classList.remove("hidden");
+        } catch (qrErr) {
+          console.error("Error generando QR:", qrErr);
+          if (qrError) qrError.classList.remove("hidden");
+        }
+      } else {
+        if (qrError) qrError.classList.remove("hidden");
+      }
+
+      // Botón para abrir el link manualmente como alternativa
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg> Abrir link de pago`;
+        btn.onclick = () => window.open(data.init_point, "_blank");
+      }
+
+      // Iniciar polling para detectar el pago automáticamente
+      startPaymentPolling(data.preference_id);
+
+    } else {
+      if (qrSpinner) qrSpinner.classList.add("hidden");
+      if (qrError)  qrError.classList.remove("hidden");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `Reintentar`;
+        btn.onclick = () => fetchPaymentPreference();
+      }
+      console.error("Error MP:", data.error);
+    }
+
+  } catch (error) {
+    console.error("Error al generar pago:", error);
+    if (qrSpinner) qrSpinner.classList.add("hidden");
+    if (qrError)  qrError.classList.remove("hidden");
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `Reintentar`;
+      btn.onclick = () => fetchPaymentPreference();
+    }
+  }
+}
+
+// El botón del overlay llama a esta función (definida en el HTML como onclick="generatePaymentLink()")
+window.generatePaymentLink = fetchPaymentPreference;
+
+function startPaymentPolling(preferenceId) {
+  // Cancelar polling anterior si existía
+  if (_paymentPollingInterval) clearInterval(_paymentPollingInterval);
+
+  let attempts = 0;
+  _paymentPollingInterval = setInterval(async () => {
+    attempts++;
+
+    try {
+      const response = await fetch(`https://delicate-shape-d593.leonelgalazzoaz.workers.dev/check-payment?preference_id=${preferenceId}&store_id=${storeId}`);
+      const data = await response.json();
+
+      if (data.status === "approved") {
+        clearInterval(_paymentPollingInterval);
+        _paymentPollingInterval = null;
+        showAlert("¡Pago confirmado!", "Tu suscripción ha sido reactivada por 30 días. Gracias por confiar en Stockware.", "success");
+        setTimeout(() => location.reload(), 3000);
+      }
+    } catch (e) {
+      console.error("Error polling:", e);
+    }
+
+    if (attempts > 60) {
+      clearInterval(_paymentPollingInterval);
+      _paymentPollingInterval = null;
+      showAlert("No se detectó el pago", "Si ya realizaste el pago, esperá unos minutos o contactá a soporte.", "warning");
+    }
+  }, 5000);
 }
 
 // ==========================================
@@ -194,6 +357,11 @@ window.closeSuccessModal = () => {
 };
 
 function addToCart(productId, variant) {
+  if (!isSubscriptionActive) {
+    showSuspensionOverlay();
+    return;
+  }
+  
   const product = products.find(p => p.id === productId);
   if (!product) return;
 
@@ -309,7 +477,7 @@ function updateCheckoutBtn() {
   ];
   btns.forEach(btn => {
     if (!btn) return;
-    if (cart.length > 0) {
+    if (cart.length > 0 && isSubscriptionActive) {
       btn.disabled = false;
       btn.style.pointerEvents = '';
       btn.className = 'w-full bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2';
@@ -327,7 +495,6 @@ window.removeFromCart = (index) => {
 };
 
 window.checkoutMobile = async () => {
-  // Sync mobile payment to desktop select before calling checkout
   const mobilePay = document.getElementById("paymentMethodMobile");
   const desktopPay = document.getElementById("paymentMethod");
   if (mobilePay && desktopPay) desktopPay.value = mobilePay.value;
@@ -335,7 +502,11 @@ window.checkoutMobile = async () => {
 };
 
 window.checkout = async () => {
-  if (cart.length === 0) return; // El botón solo está activo cuando hay items
+  if (cart.length === 0) return;
+  if (!isSubscriptionActive) {
+    showSuspensionOverlay();
+    return;
+  }
 
   const btn = document.getElementById("btnCheckout");
   btn.disabled = true;
@@ -383,7 +554,6 @@ window.checkout = async () => {
     }
   }
   
-  // Renderizar Ticket antes de limpiar el carrito
   renderTicketPreview(saleData, cart, selectedPaymentMethod);
   document.getElementById("successModal").classList.remove("hidden");
   if (typeof closeMobileCart === 'function') closeMobileCart();
@@ -400,7 +570,6 @@ window.checkout = async () => {
 // RENDERIZADO Y EXPORTACIÓN DEL TICKET
 // ==========================================
 function renderTicketPreview(sale, cartItems, method) {
-    // Logo
     const logoWrapper = document.getElementById("tkLogoWrapper");
     const logoImg = document.getElementById("tkLogo");
     if (currentStore.logo_url) {
@@ -417,7 +586,6 @@ function renderTicketPreview(sale, cartItems, method) {
     if(currentStore.instagram) contactHtml += `Instagram: @${currentStore.instagram.replace('@', '')}`;
     document.getElementById("tkStoreContact").innerHTML = contactHtml;
 
-    // Dirección / info extra
     const addrEl = document.getElementById("tkStoreAddress");
     addrEl.innerText = currentStore.address || "";
     addrEl.style.display = currentStore.address ? "" : "none";
@@ -452,7 +620,6 @@ function renderTicketPreview(sale, cartItems, method) {
 
 window.printTicket = () => {
     const ticketHtml = document.getElementById("ticketCaptureArea").innerHTML;
-    // Abrimos un popup limpio exclusivo para la tiquetera térmica
     const printWindow = window.open('', '', 'width=400,height=600');
     printWindow.document.write(`
         <html>
@@ -521,7 +688,6 @@ window.reprintTicket = (saleId) => {
 
     renderTicketPreview(sale, cartItems, sale.payment_method);
 
-    // Cambiar el botón "Nueva Venta" por "Cerrar" en modo reimpresión
     const closeBtn = document.getElementById("btnSuccessClose");
     if (closeBtn) {
         closeBtn.innerText = "Cerrar";
@@ -564,7 +730,6 @@ window.downloadTicketImage = async () => {
         btn.disabled = false;
     }
 };
-
 
 // ==========================================
 // 5. MÓDULO GESTIÓN DE PRODUCTOS
@@ -846,9 +1011,6 @@ setupImagePreview("confLogo", "confLogoPreview");
 // ==========================================
 // 8. MÓDULO VENTAS (Historial)
 // ==========================================
-let allSales = [];
-let salesPeriod = 'today';
-
 window.setSalesPeriod = (period) => {
   salesPeriod = period;
   document.querySelectorAll('.sales-period-btn').forEach(btn => {
@@ -864,8 +1026,7 @@ window.applySalesFilters = () => {
   const now = new Date();
   const AR_TZ = 'America/Argentina/Buenos_Aires';
 
-  // Helper: get YYYY-MM-DD string in Argentina timezone
-  const toARDate = (d) => d.toLocaleDateString('en-CA', { timeZone: AR_TZ }); // en-CA gives YYYY-MM-DD
+  const toARDate = (d) => d.toLocaleDateString('en-CA', { timeZone: AR_TZ });
   const todayAR = toARDate(now);
 
   let filtered = allSales.filter(sale => {
@@ -939,7 +1100,6 @@ function renderSalesList(sales) {
   };
 
   sales.forEach((sale, idx) => {
-    // Forzar parseo UTC: Supabase a veces devuelve sin Z, haciendo que new Date() lo tome como hora local
     const rawTs = sale.created_at.endsWith('Z') || sale.created_at.includes('+') ? sale.created_at : sale.created_at + 'Z';
     const date = new Date(rawTs);
     const tzOptions = { timeZone: 'America/Argentina/Buenos_Aires' };
@@ -950,7 +1110,6 @@ function renderSalesList(sales) {
     const method = sale.payment_method || 'N/A';
     const methodColor = paymentColors[method] || 'text-slate-400 bg-slate-500/10 border-slate-500/20';
     const methodIcon = paymentIcons[method] || '';
-    const rowId = `sale-row-${sale.id}`;
     const detailId = `sale-detail-${sale.id}`;
 
     const itemsHtml = items.length > 0
@@ -971,7 +1130,7 @@ function renderSalesList(sales) {
 
     const row = document.createElement("div");
     row.innerHTML = `
-      <div id="${rowId}" class="hidden md:grid grid-cols-12 px-4 py-3.5 items-center hover:bg-slate-800/40 transition-colors cursor-pointer group" onclick="toggleSaleDetail('${sale.id}')">
+      <div class="hidden md:grid grid-cols-12 px-4 py-3.5 items-center hover:bg-slate-800/40 transition-colors cursor-pointer group" onclick="toggleSaleDetail('${sale.id}')">
         <span class="col-span-1 text-xs font-bold text-slate-600">#${idx + 1}</span>
         <div class="col-span-3">
           <p class="text-xs font-semibold text-white">${dateStr}</p>
@@ -1209,13 +1368,30 @@ function showToast(message, type = 'success') {
   };
   const toast = document.createElement('div');
   toast.id = 'posToast';
-  toast.className = `fixed bottom-6 right-6 z-[100] flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl text-sm font-semibold ${colors[type]}`;
+  // Cambio realizado: z-[100] elevado a z-[10000] para evitar que quede oculto por el overlay (z-[9999])
+  toast.className = `fixed bottom-6 right-6 z-[10000] flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl text-sm font-semibold ${colors[type]}`;
   toast.style.cssText = 'opacity:0;transform:translateY(8px);transition:opacity 0.25s,transform 0.25s';
   toast.innerHTML = `${icons[type]}<span>${message}</span>`;
   document.body.appendChild(toast);
   requestAnimationFrame(() => { toast.style.opacity='1'; toast.style.transform='translateY(0)'; });
   setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateY(8px)'; setTimeout(() => toast.remove(), 300); }, 3200);
 }
+// ==========================================
+// EXPONER FUNCIONES GLOBALMENTE PARA EL HTML
+// Se usan nombres con prefijo _posModule para no pisar los wrappers
+// del script inline del HTML (que sirven de fallback antes de que cargue el módulo).
+// ==========================================
+window._posModuleCopyText = (text) => {
+  navigator.clipboard.writeText(text);
+  showToast("Copiado al portapapeles", "success");
+};
 
+window._posModuleCopyPaymentInfo = () => {
+  const info = `DATOS DE PAGO STOCKWARE\n\nAlias: STOCKWARE.POS\nCBU: 0000003100076543210001\nMonto: $15.000\n\nEnviar comprobante a WhatsApp: +54 9 3644 539325`;
+  navigator.clipboard.writeText(info);
+  showToast("Datos de pago copiados", "success");
+};
+
+window._posModuleGeneratePaymentLink = window.generatePaymentLink;
 // Start
 initPos();
