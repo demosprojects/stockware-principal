@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #0f172a; }
@@ -460,7 +461,7 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 <div>
                   <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">WhatsApp</label>
-                  <input type="text" id="confPhone" placeholder="+54 9 11 1234-5678" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+                  <input type="text" id="confPhone" placeholder="+54 9 3644 539325" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
                 </div>
                 <div>
                   <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Instagram</label>
@@ -670,6 +671,136 @@
     </div>
   </div>
 
+<!-- OVERLAY DE SUSPENSIÓN POR PAGO VENCIDO -->
+<div id="suspensionOverlay" class="fixed inset-0 z-[9999] hidden" style="background: rgba(11,17,32,0.97); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+  <div class="h-full overflow-y-auto flex items-start md:items-center justify-center p-4 py-6">
+    <div class="w-full max-w-lg fade-in">
+
+      <!-- HEADER -->
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 mb-4">
+          <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+        <h2 class="text-xl font-bold text-white tracking-tight">Suscripción vencida</h2>
+        <p class="text-sm text-slate-400 mt-1">Renová tu plan para seguir usando Stockware.</p>
+      </div>
+
+      <!-- GRID: QR + TRANSFERENCIA -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+
+        <!-- COLUMNA MERCADO PAGO -->
+        <div class="bg-slate-900 border border-slate-700/60 rounded-2xl p-4 flex flex-col">
+          <!-- Label -->
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center flex-shrink-0">
+              <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+            </div>
+            <span class="text-xs font-semibold text-blue-400 uppercase tracking-wider">Mercado Pago</span>
+            <span class="ml-auto text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">Auto</span>
+          </div>
+
+          <!-- QR -->
+          <div class="flex flex-col items-center justify-center flex-1 mb-3">
+            <div id="qrLoadingSpinner" class="w-36 h-36 bg-slate-800 rounded-xl border border-slate-700 flex flex-col items-center justify-center gap-2">
+              <div class="w-5 h-5 border-2 border-blue-400/40 border-t-blue-400 rounded-full" style="animation: spin 0.8s linear infinite;"></div>
+              <span class="text-[10px] text-slate-500">Generando...</span>
+            </div>
+            <div id="qrCodeImage" class="hidden bg-white rounded-xl p-2.5 shadow-xl border-4 border-white">
+              <div id="qrCodeContainer"></div>
+            </div>
+            <div id="qrError" class="hidden w-36 h-36 bg-slate-800 rounded-xl border border-slate-700 flex flex-col items-center justify-center gap-1.5 p-3">
+              <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span class="text-[10px] text-slate-500 text-center leading-tight">No se pudo generar el QR</span>
+            </div>
+            <!-- Aclaración QR -->
+            <p class="text-[10px] text-slate-500 text-center mt-2 leading-tight">Solo con la app de Mercado Pago</p>
+          </div>
+
+          <!-- Botón link -->
+          <button id="btnMercadoPago" onclick="generatePaymentLink()" class="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2 mt-auto">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+            Abrir link de pago
+          </button>
+        </div>
+
+        <!-- COLUMNA TRANSFERENCIA -->
+        <div class="bg-slate-900 border border-slate-700/60 rounded-2xl p-4 flex flex-col">
+          <!-- Label -->
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 rounded-md bg-slate-700 border border-slate-600 flex items-center justify-center flex-shrink-0">
+              <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+              </svg>
+            </div>
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Transferencia</span>
+            <span class="ml-auto text-[10px] font-semibold text-slate-400 bg-slate-700/50 border border-slate-600/50 px-1.5 py-0.5 rounded-full">Manual</span>
+          </div>
+
+          <!-- Datos bancarios -->
+          <div class="space-y-2.5 flex-1">
+            <div class="bg-slate-800/60 rounded-lg px-3 py-2.5">
+              <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">Alias</p>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-mono font-bold text-white">STOCKWARE.POS</span>
+                <button onclick="copyText('STOCKWARE.POS')" class="flex-shrink-0 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="bg-slate-800/60 rounded-lg px-3 py-2.5">
+              <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">CBU</p>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-mono text-white tracking-wide">0000003100076543210001</span>
+                <button onclick="copyText('0000003100076543210001')" class="flex-shrink-0 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="bg-slate-800/60 rounded-lg px-3 py-2.5 flex items-center justify-between">
+              <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Monto</p>
+              <span class="text-sm font-bold text-indigo-400">$15.000 / mes</span>
+            </div>
+          </div>
+
+          <!-- Botón copiar todo -->
+          <button onclick="copyPaymentInfo()" class="w-full mt-3 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] border border-slate-700 text-slate-300 font-medium py-2.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            Copiar datos
+          </button>
+        </div>
+
+      </div>
+
+      <!-- AVISO TRANSFERENCIA -->
+      <div class="bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-3 mb-3 flex items-start gap-3">
+        <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Con Mercado Pago la activación es automática al instante. Con transferencia, enviá el comprobante a
+          <strong class="text-white font-semibold">WhatsApp: +54 9 3644 539325</strong> para activación manual.
+        </p>
+      </div>
+
+      <!-- BOTÓN VERIFICAR -->
+      <button onclick="location.reload()" class="w-full bg-slate-900 hover:bg-slate-800 active:scale-[0.98] border border-slate-700/60 text-slate-400 hover:text-slate-300 font-medium py-2.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Ya pagué, verificar
+      </button>
+
+    </div>
+  </div>
+</div>
   <script type="module" src="./pos.js"></script>
 
   <script>
@@ -727,6 +858,35 @@
         mobile.addEventListener('change', () => { desktop.value = mobile.value; });
       }
     });
+
+    // ===== FUNCIONES DEL OVERLAY DE PAGO =====
+    // Wrappers seguros: delegan al módulo pos.js una vez que cargó.
+    // Si el módulo aún no terminó de inicializarse, usan fallback básico.
+
+    window.copyText = (text) => {
+      if (window._posModuleCopyText) {
+        window._posModuleCopyText(text);
+      } else {
+        navigator.clipboard.writeText(text).then(() => alert("✅ Copiado: " + text));
+      }
+    };
+
+    window.copyPaymentInfo = () => {
+      if (window._posModuleCopyPaymentInfo) {
+        window._posModuleCopyPaymentInfo();
+      } else {
+        const info = `DATOS DE PAGO STOCKWARE\n\nAlias: STOCKWARE.POS\nCBU: 0000003100076543210001\nMonto: $15.000\n\nEnviar comprobante a WhatsApp: +54 9 3644539325`;
+        navigator.clipboard.writeText(info).then(() => alert("Datos de pago copiados"));
+      }
+    };
+
+    window.generatePaymentLink = () => {
+      if (window._posModuleGeneratePaymentLink) {
+        window._posModuleGeneratePaymentLink();
+      } else {
+        alert("⚠️ Función de pago no disponible. Contactá al administrador.");
+      }
+    };
   </script>
 </body>
 </html>
