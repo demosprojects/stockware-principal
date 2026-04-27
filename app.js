@@ -58,14 +58,16 @@ async function checkStoreAccess(userId) {
   if (error || !store) {
     alert("Tu usuario no tiene una tienda asignada. Contactá al administrador.");
     await supabase.auth.signOut();
-    return false; // Retornamos false para que el login() sepa que falló
+    return false;
   }
 
   const isExpired = store.expires_at && new Date(store.expires_at) < new Date();
+  
   if (!store.active || isExpired) {
-    alert("Tu suscripción ha vencido o la tienda está inactiva.");
-    await supabase.auth.signOut();
-    return false;
+    // ✅ REDIRIGIR A POS HTML PARA QUE MUESTRE EL OVERLAY DE PAGO
+    localStorage.setItem("store_id", store.id);
+    window.location.href = "pos.html";
+    return false; // Importante: retornar false para que no siga
   }
 
   localStorage.setItem("store_id", store.id);
