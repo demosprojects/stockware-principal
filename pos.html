@@ -160,7 +160,7 @@
 
         <button onclick="switchView('cash'); closeSidebar();" id="nav-cash" class="w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm font-medium border border-transparent transition-all">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-          Caja Diaria
+          Caja diaria
         </button>
       </nav>
     </div>
@@ -325,7 +325,7 @@
             </button>
             <div>
               <h2 class="text-base md:text-xl font-bold text-white">Gestión de productos</h2>
-              <p class="text-xs text-slate-400 mt-0.5 hidden md:block">Gestioná inventario, variantes y precios.</p>
+              <p class="text-xs text-slate-400 mt-0.5 hidden md:block">Gestioná inventario, variantes y precios de tus productos.</p>
             </div>
           </div>
           <button onclick="openProductModal()" class="bg-indigo-500 hover:bg-indigo-400 text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-1.5 flex-shrink-0">
@@ -412,25 +412,118 @@
 
     <!-- ===== CAJA DIARIA VIEW ===== -->
     <div id="cashView" class="hidden flex-1 flex flex-col h-full overflow-hidden fade-in">
+
+      <!-- HEADER común -->
       <div class="flex-shrink-0 p-3 md:p-6 pb-0 md:pb-0">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div class="flex items-center gap-3">
-            <button onclick="openSidebar()" class="md:hidden flex items-center justify-center w-8 h-8 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition flex-shrink-0">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-            </button>
-            <div>
-              <h2 class="text-base md:text-xl font-bold text-white">Caja Diaria</h2>
-              <p id="cashDateLabel" class="text-xs text-slate-400 mt-0.5 hidden md:block"></p>
-            </div>
+        <div class="flex items-center gap-3 mb-4">
+          <button onclick="openSidebar()" class="md:hidden flex items-center justify-center w-8 h-8 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div>
+            <h2 class="text-base md:text-xl font-bold text-white">Caja diaria</h2>
+            <p id="cashDateLabel" class="text-xs text-slate-400 mt-0.5"></p>
           </div>
-          <!-- Date picker -->
-          <input type="date" id="cashDatePicker" onchange="loadCashDay()" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
         </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto px-3 pb-6 md:px-6 md:pb-6 min-h-0 space-y-4">
+      <!-- ===== ESTADO: APERTURA DE CAJA ===== -->
+      <div id="cashOpeningState" class="hidden flex-1 overflow-y-auto px-3 pb-6 md:px-6 md:pb-6 min-h-0">
+        <div class="max-w-2xl mx-auto space-y-5">
 
-        <!-- KPIs del día -->
+          <!-- Card apertura (compacta) -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <div class="flex items-center gap-4">
+              <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex-shrink-0">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-bold text-white">Apertura de Caja</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Ingresá el fondo inicial para comenzar el turno.</p>
+              </div>
+            </div>
+            <div class="mt-4 flex gap-3 items-end">
+              <div class="flex-1">
+                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Monto inicial</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                  <input
+                    type="number"
+                    id="cashInitialAmount"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    class="w-full pl-7 pr-3 py-2.5 bg-slate-800 border border-slate-700 text-white text-base font-bold rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition placeholder-slate-600"
+                  >
+                </div>
+              </div>
+              <button
+                onclick="openCashSession()"
+                id="btnOpenCash"
+                class="flex-shrink-0 bg-indigo-500 hover:bg-indigo-400 active:scale-[0.98] text-white font-bold py-2.5 px-5 rounded-xl transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.35)] flex items-center gap-2 text-sm"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                </svg>
+                Abrir caja
+              </button>
+            </div>
+          </div>
+
+          <!-- Historial de cierres -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Últimos Cierres de Caja</h3>
+              <span id="cashHistoryCount" class="text-[10px] font-semibold text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700"></span>
+            </div>
+            <!-- Loading -->
+            <div id="cashHistoryLoading" class="p-6 text-center text-xs text-slate-500 animate-pulse">Cargando historial...</div>
+            <!-- Empty -->
+            <div id="cashHistoryEmpty" class="hidden flex-col items-center justify-center py-10 text-center">
+              <svg class="w-8 h-8 text-slate-700 mb-2 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <p class="text-xs text-slate-500">Sin cierres registrados aún.</p>
+            </div>
+            <!-- Header tabla desktop -->
+            <div id="cashHistoryTableHeader" class="hidden md:grid grid-cols-12 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+              <span class="col-span-3">Apertura</span>
+              <span class="col-span-3">Cierre</span>
+              <span class="col-span-2">Fondo inicial</span>
+              <span class="col-span-2">Efectivo final</span>
+              <span class="col-span-2 text-right">Total vendido</span>
+            </div>
+            <!-- Filas -->
+            <div id="cashHistoryList" class="divide-y divide-slate-800/50"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== ESTADO: CAJA OPERANDO (ARQUEO) ===== -->
+      <div id="cashOperatingState" class="hidden flex-1 overflow-y-auto px-3 pb-6 md:px-6 md:pb-6 min-h-0 space-y-4">
+
+        <!-- Badge sesión activa + botón cerrar -->
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <span class="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Caja abierta
+            </span>
+            <span id="cashSessionOpenedAt" class="text-[11px] text-slate-500"></span>
+          </div>
+          <button
+            onclick="closeCashSession()"
+            id="btnCloseCash"
+            class="flex items-center gap-2 bg-slate-800 hover:bg-red-500/10 active:scale-[0.98] border border-slate-700 hover:border-red-500/30 text-slate-300 hover:text-red-400 font-semibold py-2 px-4 rounded-xl transition-all text-sm"
+          >
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            Cerrar caja
+          </button>
+        </div>
+
+        <!-- KPIs del turno -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
           <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 md:p-4">
             <p class="text-[9px] md:text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">Transacciones</p>
@@ -450,37 +543,36 @@
           </div>
         </div>
 
+        <!-- Fondo inicial + efectivo esperado -->
+        <div class="grid grid-cols-2 gap-2 md:gap-3">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 md:p-4">
+            <p class="text-[9px] md:text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">Fondo inicial</p>
+            <p id="cash-kpi-initial" class="text-xl md:text-2xl font-black text-slate-300">$0</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 md:p-4">
+            <p class="text-[9px] md:text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">Efectivo esperado</p>
+            <p id="cash-kpi-cash-expected" class="text-xl md:text-2xl font-black text-emerald-400">$0</p>
+          </div>
+        </div>
+
         <!-- Desglose por método de pago -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5">
           <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Desglose por método de pago</h3>
           <div id="cashPaymentBreakdown" class="space-y-2">
-            <p class="text-xs text-slate-600">Sin ventas en este período.</p>
+            <p class="text-xs text-slate-600">Sin ventas en este turno.</p>
           </div>
-        </div>
-
-        <!-- Lista de ventas del día -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-          <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ventas del día</h3>
-            <span id="cashSalesCount" class="text-[10px] font-semibold text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">0 registros</span>
-          </div>
-          <div id="cashLoadingState" class="p-8 text-center text-sm text-slate-500 animate-pulse hidden">Cargando...</div>
-          <div id="cashEmptyState" class="hidden flex-col items-center justify-center py-12 text-center">
-            <svg class="w-10 h-10 text-slate-700 mb-2 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-            <p class="text-xs text-slate-500 font-medium">Sin ventas en este día</p>
-          </div>
-          <div id="cashTableHeader" class="hidden md:grid grid-cols-12 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-            <span class="col-span-1">#</span>
-            <span class="col-span-3">Hora</span>
-            <span class="col-span-3">Medio de pago</span>
-            <span class="col-span-2">Unidades</span>
-            <span class="col-span-2 text-right">Total</span>
-            <span class="col-span-1"></span>
-          </div>
-          <div id="cashSalesList" class="divide-y divide-slate-800/50"></div>
         </div>
 
       </div>
+
+      <!-- Loader mientras verifica sesión -->
+      <div id="cashCheckingState" class="hidden flex-1 flex items-center justify-center">
+        <div class="text-center">
+          <div class="spinner mx-auto mb-3" style="width:24px;height:24px;border-width:3px;"></div>
+          <p class="text-sm text-slate-500">Verificando caja...</p>
+        </div>
+      </div>
+
     </div>
 
     <div id="configView" class="hidden flex-1 flex flex-col h-full overflow-hidden fade-in">
@@ -516,7 +608,7 @@
             <div class="w-full bg-slate-800 rounded-full h-1.5 mt-auto">
               <div id="configProgressBar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 100%"></div>
             </div>
-            <p class="text-[10px] text-slate-500 text-center mt-3">Contactá a tu administrador para renovar.</p>
+            <p class="text-[10px] text-slate-500 text-center mt-3">Contactá con soporte si vez algun error.</p>
           </div>
 
           <!-- Datos del ticket -->
@@ -608,8 +700,8 @@
       <div class="p-4 md:p-5">
         <div class="grid grid-cols-2 gap-3 md:gap-4 mb-4">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre de prenda</label>
-            <input type="text" id="pName" placeholder="Ej: Remera Dark" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre del producto</label>
+            <input type="text" id="pName" placeholder="Ej: Remera, Zapatilla, Cartera..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-400 mb-1.5">Precio($)</label>
@@ -625,10 +717,18 @@
             </div>
           </div>
         </div>
+        <!-- Stock simple (se muestra solo si no hay variantes) -->
+        <div id="pStockWrapper" class="mb-4">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Stock disponible</label>
+          <input type="number" id="pStock" placeholder="0" min="0" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+        </div>
         <div class="mb-3 flex justify-between items-end border-b border-slate-800 pb-2 mt-4">
-          <h3 class="text-xs font-bold text-white uppercase tracking-wider">Variantes y Stock</h3>
+          <div>
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">Variantes <span class="text-slate-500 normal-case font-normal text-[10px]">(opcional)</span></h3>
+            <p id="pVariantsHint" class="text-[10px] text-slate-500 mt-0.5">Si agregás variantes, el stock se define por variante.</p>
+          </div>
           <button onclick="addVariantRow()" class="text-indigo-400 text-xs font-semibold hover:text-indigo-300 transition flex items-center gap-1">
-            <span>+</span> Añadir fila
+            <span>+</span> Añadir variante
           </button>
         </div>
         <div id="variantsContainer" class="space-y-2 mb-5"></div>
@@ -703,8 +803,8 @@
         <input type="hidden" id="editPId">
         <div class="grid grid-cols-2 gap-3 md:gap-4 mb-4">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre de prenda</label>
-            <input type="text" id="editPName" placeholder="Ej: Remera Dark" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre del producto</label>
+            <input type="text" id="editPName" placeholder="Ej: Remera, Zapatilla, Cartera..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-400 mb-1.5">Precio ($)</label>
@@ -720,10 +820,18 @@
             </div>
           </div>
         </div>
+        <!-- Stock simple (se muestra solo si no hay variantes) -->
+        <div id="editPStockWrapper" class="mb-4 hidden">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Stock disponible</label>
+          <input type="number" id="editPStock" placeholder="0" min="0" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+        </div>
         <div class="mb-3 flex justify-between items-end border-b border-slate-800 pb-2 mt-2">
-          <h3 class="text-xs font-bold text-white uppercase tracking-wider">Variantes y Stock</h3>
+          <div>
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">Variantes <span class="text-slate-500 normal-case font-normal text-[10px]">(opcional)</span></h3>
+            <p id="editPVariantsHint" class="text-[10px] text-slate-500 mt-0.5">Si agregás variantes, el stock se define por variante.</p>
+          </div>
           <button onclick="addEditVariantRow()" class="text-indigo-400 text-xs font-semibold hover:text-indigo-300 transition flex items-center gap-1">
-            <span>+</span> Añadir fila
+            <span>+</span> Añadir variante
           </button>
         </div>
         <div id="editVariantsContainer" class="space-y-2 mb-5"></div>
