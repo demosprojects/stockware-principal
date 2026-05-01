@@ -12,6 +12,7 @@ let currentStore = null;
 let isSubscriptionActive = true;
 let allSales = [];
 let salesPeriod = 'today';
+let currentCashSession = null; // Sesión de caja activa
 
 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
 document.getElementById('currentDateDisplay').innerText = new Intl.DateTimeFormat('es-AR', options).format(new Date());
@@ -47,6 +48,7 @@ async function initPos() {
   currentStore = store;
   document.getElementById("storeNameDisplay").innerText = store.name;
   loadProducts();
+  loadPaymentMethods();
 }
 
 function showSuspensionOverlay() {
@@ -275,11 +277,15 @@ function renderPosGrid(productsToRender) {
 
   productsToRender.forEach(prod => {
     const stockTotal = prod.variants.reduce((acc, v) => acc + (v.stock || 0), 0);
-    const hasVariants = prod.variants.length > 0;
+    // Variante fantasma = único variant sin size y sin color (producto sin variantes reales)
+    const isSimpleProduct = prod.variants.length === 1 && !prod.variants[0].size && !prod.variants[0].color;
+    const hasRealVariants = prod.variants.length > 0 && !isSimpleProduct;
 
     const card = document.createElement("div");
     card.className = "bg-slate-800 border border-slate-700 hover:border-indigo-500/50 rounded-xl p-3 hover:shadow-[0_0_12px_rgba(99,102,241,0.15)] transition-all cursor-pointer flex flex-col justify-between group active:scale-95";
-    card.onclick = () => hasVariants ? openVariantModal(prod.id) : addToCart(prod.id, null);
+    card.onclick = () => hasRealVariants
+      ? openVariantModal(prod.id)
+      : addToCart(prod.id, isSimpleProduct ? prod.variants[0] : null);
 
     const imgHtml = prod.image_url
       ? `<img src="${prod.image_url}" alt="${prod.name}" class="w-full h-full object-contain p-1" onerror="this.parentElement.innerHTML='<svg class=\\'w-10 h-10\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.2\\' d=\\'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z\\'></path></svg>'">`
@@ -517,9 +523,20 @@ window.checkout = async () => {
   const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const selectedPaymentMethod = document.getElementById("paymentMethod").value;
 
+  const salePayload = {
+    store_id: storeId,
+    total: total,
+    payment_method: selectedPaymentMethod,
+  };
+
+  // Si hay una sesión de caja activa, vincular la venta
+  if (currentCashSession?.id) {
+    salePayload.session_id = currentCashSession.id;
+  }
+
   const { data: saleData, error: saleError } = await supabase
     .from("sales")
-    .insert({ store_id: storeId, total: total, payment_method: selectedPaymentMethod })
+    .insert(salePayload)
     .select().single();
 
   if (saleError) {
@@ -795,10 +812,12 @@ function renderProductsTable() {
 window.openProductModal = () => {
   document.getElementById("pName").value = "";
   document.getElementById("pPrice").value = "";
+  document.getElementById("pStock").value = "";
   document.getElementById("pImageUrl").value = "";
   document.getElementById("pImagePreview").innerHTML = `<svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
   document.getElementById("variantsContainer").innerHTML = "";
-  addVariantRow(); 
+  // Mostrar stock simple al inicio (sin variantes)
+  document.getElementById("pStockWrapper").classList.remove("hidden");
   document.getElementById("addProductModal").classList.remove("hidden");
 };
 
@@ -814,12 +833,23 @@ window.addVariantRow = () => {
   div.className = "flex gap-2.5 items-center variant-row mb-2.5";
   div.id = rowId;
   div.innerHTML = `
-    <input type="text" placeholder="Talle (Ej: M)" class="var-size w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
-    <input type="text" placeholder="Color (Ej: Negro)" class="var-color w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
+    <input type="text" placeholder="Variante (Ej: Talle M, 42, Único)" class="var-size w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
+    <input type="text" placeholder="Detalle (Ej: Negro, Rojo, Cuero)" class="var-color w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
     <input type="number" placeholder="Stock" class="var-stock w-1/4 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
-    <button onclick="document.getElementById('${rowId}').remove()" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-400 bg-slate-800 hover:bg-red-500/10 border border-slate-700 hover:border-red-500/30 rounded-lg transition">&times;</button>
+    <button onclick="removeVariantRow('${rowId}')" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-400 bg-slate-800 hover:bg-red-500/10 border border-slate-700 hover:border-red-500/30 rounded-lg transition">&times;</button>
   `;
   container.appendChild(div);
+  // Ocultar stock simple mientras haya variantes
+  document.getElementById("pStockWrapper").classList.add("hidden");
+};
+
+// Eliminar fila de variante y mostrar stock simple si ya no hay ninguna
+window.removeVariantRow = (rowId) => {
+  document.getElementById(rowId).remove();
+  const remaining = document.querySelectorAll('.variant-row');
+  if (remaining.length === 0) {
+    document.getElementById("pStockWrapper").classList.remove("hidden");
+  }
 };
 
 window.saveProduct = async () => {
@@ -843,7 +873,7 @@ window.saveProduct = async () => {
     }
   });
 
-  if (variantsData.length === 0) { showAlert('Sin variantes', 'Agregá al menos una variante con talle o color.', 'warning'); return; }
+  
 
   btn.innerText = "Guardando...";
   btn.disabled = true;
@@ -860,9 +890,13 @@ window.saveProduct = async () => {
     return;
   }
 
+  // Si no hay variantes, crear una variante fantasma con el stock general
+  if (variantsData.length === 0) {
+    const simpleStock = parseInt(document.getElementById("pStock").value) || 0;
+    variantsData.push({ size: '', color: '', stock: simpleStock });
+  }
   const variantsToInsert = variantsData.map(v => ({ ...v, product_id: newProduct.id }));
   const { error: varError } = await supabase.from("variants").insert(variantsToInsert);
-
   if (varError) showAlert('Variantes no guardadas', 'El producto fue creado, pero hubo un error al guardar las variantes.', 'error');
 
   btn.innerText = "Guardar";
@@ -901,7 +935,24 @@ window.openEditProductModal = (productId) => {
 
   const container = document.getElementById("editVariantsContainer");
   container.innerHTML = "";
-  prod.variants.forEach(v => addEditVariantRow(v));
+
+  // Detectar si es producto simple (variante fantasma: sin size ni color)
+  const isSimple = prod.variants.length === 1 && !prod.variants[0].size && !prod.variants[0].color;
+  const stockWrapper = document.getElementById("editPStockWrapper");
+  const stockInput = document.getElementById("editPStock");
+
+  if (isSimple) {
+    // Mostrar campo de stock simple, no mostrar la fila de variante
+    stockWrapper.classList.remove("hidden");
+    stockInput.value = prod.variants[0].stock ?? '';
+    // Guardar el id de la variante fantasma para poder actualizarla
+    stockInput.dataset.variantId = prod.variants[0].id;
+  } else {
+    stockWrapper.classList.add("hidden");
+    stockInput.value = '';
+    stockInput.dataset.variantId = '';
+    prod.variants.forEach(v => addEditVariantRow(v));
+  }
 
   document.getElementById("editProductModal").classList.remove("hidden");
 };
@@ -919,12 +970,23 @@ window.addEditVariantRow = (variant = null) => {
   div.id = rowId;
   div.innerHTML = `
     <input type="hidden" class="edit-var-id" value="${variant?.id || ''}">
-    <input type="text" placeholder="Talle (Ej: M)" value="${variant?.size || ''}" class="edit-var-size w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
-    <input type="text" placeholder="Color (Ej: Negro)" value="${variant?.color || ''}" class="edit-var-color w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
+    <input type="text" placeholder="Variante (Ej: Talle M, 42, Único)" value="${variant?.size || ''}" class="edit-var-size w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
+    <input type="text" placeholder="Detalle (Ej: Negro, Rojo, Cuero)" value="${variant?.color || ''}" class="edit-var-color w-1/3 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
     <input type="number" placeholder="Stock" value="${variant?.stock ?? ''}" class="edit-var-stock w-1/4 p-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-500">
-    <button onclick="document.getElementById('${rowId}').remove()" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-400 bg-slate-800 hover:bg-red-500/10 border border-slate-700 hover:border-red-500/30 rounded-lg transition">&times;</button>
+    <button onclick="removeEditVariantRow('${rowId}')" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-400 bg-slate-800 hover:bg-red-500/10 border border-slate-700 hover:border-red-500/30 rounded-lg transition">&times;</button>
   `;
   container.appendChild(div);
+  // Si se agrega una variante real, ocultar el campo de stock simple
+  document.getElementById("editPStockWrapper").classList.add("hidden");
+};
+
+// Eliminar fila variante en edición; si no quedan más, mostrar stock simple
+window.removeEditVariantRow = (rowId) => {
+  document.getElementById(rowId).remove();
+  const remaining = document.querySelectorAll('.edit-variant-row');
+  if (remaining.length === 0) {
+    document.getElementById("editPStockWrapper").classList.remove("hidden");
+  }
 };
 
 window.updateProduct = async () => {
@@ -952,35 +1014,57 @@ window.updateProduct = async () => {
   }
 
   const rows = document.querySelectorAll(".edit-variant-row");
-  const toUpsert = [];
-  const toInsert = [];
+  const stockInput = document.getElementById("editPStock");
+  const isSimpleMode = !document.getElementById("editPStockWrapper").classList.contains("hidden");
 
-  rows.forEach(row => {
-    const varId = row.querySelector(".edit-var-id").value;
-    const size = row.querySelector(".edit-var-size").value.trim();
-    const color = row.querySelector(".edit-var-color").value.trim();
-    const stock = parseInt(row.querySelector(".edit-var-stock").value) || 0;
-    if (!size && !color) return;
-    if (varId) {
-      toUpsert.push({ id: varId, product_id: id, size, color, stock });
+  if (isSimpleMode) {
+    // Producto sin variantes: actualizar o crear la variante fantasma
+    const simpleStock = parseInt(stockInput.value) || 0;
+    const phantomId = stockInput.dataset.variantId;
+    if (phantomId) {
+      // Ya existe la variante fantasma → actualizarla
+      await supabase.from("variants").update({ stock: simpleStock, size: '', color: '' }).eq("id", phantomId);
     } else {
-      toInsert.push({ product_id: id, size, color, stock });
+      // No existe → crearla (caso: producto tenía variantes reales y se quitaron todas)
+      const prod = products.find(p => p.id === id);
+      if (prod) {
+        const allIds = prod.variants.map(v => v.id);
+        if (allIds.length > 0) await supabase.from("variants").delete().in("id", allIds);
+      }
+      await supabase.from("variants").insert({ product_id: id, size: '', color: '', stock: simpleStock });
     }
-  });
+  } else {
+    // Producto con variantes reales
+    const toUpsert = [];
+    const toInsert = [];
 
-  if (toUpsert.length > 0) {
-    await supabase.from("variants").upsert(toUpsert);
-  }
-  if (toInsert.length > 0) {
-    await supabase.from("variants").insert(toInsert);
-  }
+    rows.forEach(row => {
+      const varId = row.querySelector(".edit-var-id").value;
+      const size = row.querySelector(".edit-var-size").value.trim();
+      const color = row.querySelector(".edit-var-color").value.trim();
+      const stock = parseInt(row.querySelector(".edit-var-stock").value) || 0;
+      if (!size && !color) return;
+      if (varId) {
+        toUpsert.push({ id: varId, product_id: id, size, color, stock });
+      } else {
+        toInsert.push({ product_id: id, size, color, stock });
+      }
+    });
 
-  const prod = products.find(p => p.id === id);
-  if (prod) {
-    const keptIds = toUpsert.map(v => v.id);
-    const toDelete = prod.variants.filter(v => !keptIds.includes(v.id)).map(v => v.id);
-    if (toDelete.length > 0) {
-      await supabase.from("variants").delete().in("id", toDelete);
+    if (toUpsert.length > 0) {
+      await supabase.from("variants").upsert(toUpsert);
+    }
+    if (toInsert.length > 0) {
+      await supabase.from("variants").insert(toInsert);
+    }
+
+    const prod = products.find(p => p.id === id);
+    if (prod) {
+      const keptIds = toUpsert.map(v => v.id);
+      const toDelete = prod.variants.filter(v => !keptIds.includes(v.id)).map(v => v.id);
+      if (toDelete.length > 0) {
+        await supabase.from("variants").delete().in("id", toDelete);
+      }
     }
   }
 
@@ -1144,7 +1228,10 @@ function renderSalesList(sales) {
           </span>
         </div>
         <span class="col-span-2 text-xs text-slate-300">${totalUnits} u.</span>
-        <span class="col-span-2 text-right text-sm font-bold text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+        <div class="col-span-2 flex items-center justify-end gap-2">
+          ${sale.status === 'anulada' ? '<span class="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded">ANULADA</span>' : ''}
+          <span class="text-sm font-bold ${sale.status === 'anulada' ? 'text-slate-500 line-through' : 'text-white'}">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+        </div>
         <div class="col-span-1 flex justify-end">
           <svg id="chevron-${sale.id}" class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </div>
@@ -1160,7 +1247,8 @@ function renderSalesList(sales) {
           </div>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
-          <span class="text-sm font-black text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+          ${sale.status === 'anulada' ? '<span class="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded flex-shrink-0">ANULADA</span>' : ''}
+          <span class="text-sm font-black ${sale.status === 'anulada' ? 'text-slate-500 line-through' : 'text-white'}">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
           <svg id="chevron-${sale.id}-m" class="w-4 h-4 text-slate-600 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </div>
       </div>
@@ -1171,15 +1259,21 @@ function renderSalesList(sales) {
           <div class="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-700">
             <span class="text-xs text-slate-400">Total</span>
             <div class="flex items-center gap-3">
-              <button onclick="anularVenta('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-red-400 hover:text-white hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1.5 rounded-lg transition-all">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                Anular
-              </button>
+              ${sale.status === 'anulada'
+                ? `<span class="flex items-center gap-1.5 text-[11px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-lg">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    ANULADA
+                  </span>`
+                : `<button onclick="anularVenta('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-red-400 hover:text-white hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1.5 rounded-lg transition-all">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    Anular
+                  </button>`
+              }
               <button onclick="reprintTicket('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 rounded-lg transition-all">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Ver ticket
               </button>
-              <span class="text-sm font-black text-indigo-400">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+              <span class="text-sm font-black ${sale.status === 'anulada' ? 'text-slate-500 line-through' : 'text-indigo-400'}">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
             </div>
           </div>
         </div>
@@ -1307,6 +1401,19 @@ window.logout = async () => {
 // 10. ANULAR VENTA
 // ==========================================
 window.anularVenta = async (saleId) => {
+  // Verificar estado actual antes de operar (evita doble anulación y doble reposición de stock)
+  const { data: saleCheck, error: checkErr } = await supabase
+    .from('sales')
+    .select('status')
+    .eq('id', saleId)
+    .single();
+
+  if (checkErr) { showToast('Error al verificar la venta.', 'error'); return; }
+  if (saleCheck?.status === 'anulada') {
+    showAlert('Venta ya anulada', 'Esta venta ya fue anulada anteriormente. El stock fue repuesto en su momento.', 'warning');
+    return;
+  }
+
   const confirmed = await showConfirm('Anular venta', '¿Confirmás la anulación? Se repondrá el stock de todos los ítems.');
   if (!confirmed) return;
 
@@ -1348,154 +1455,294 @@ window.anularVenta = async (saleId) => {
 };
 
 // ==========================================
-// 11. MÓDULO CAJA DIARIA
+// 11. MÓDULO CAJA DIARIA (con sesiones)
 // ==========================================
-function initCashView() {
-  const picker = document.getElementById('cashDatePicker');
-  if (!picker.value) {
-    // Fecha de hoy en AR (YYYY-MM-DD)
-    const today = new Date();
-    const offset = today.getTimezoneOffset();
-    const local = new Date(today.getTime() - offset * 60000);
-    picker.value = local.toISOString().split('T')[0];
-  }
-  loadCashDay();
+
+// Muestra el sub-estado correcto dentro de cashView
+function showCashState(state) {
+  // estados posibles: 'checking' | 'opening' | 'operating'
+  document.getElementById('cashCheckingState').classList.toggle('hidden', state !== 'checking');
+  document.getElementById('cashOpeningState').classList.toggle('hidden', state !== 'opening');
+  document.getElementById('cashOperatingState').classList.toggle('hidden', state !== 'operating');
 }
 
-window.loadCashDay = async () => {
-  const picker = document.getElementById('cashDatePicker');
-  const dateStr = picker.value;
-  if (!dateStr) return;
-
-  const loadingEl = document.getElementById('cashLoadingState');
-  const emptyEl   = document.getElementById('cashEmptyState');
-  const listEl    = document.getElementById('cashSalesList');
-
-  if (loadingEl) loadingEl.classList.remove('hidden');
-  if (emptyEl)   emptyEl.classList.add('hidden');
-  listEl.innerHTML = '';
-
-  // Construir rango del día en UTC considerando TZ Argentina (UTC-3)
-  const start = new Date(dateStr + 'T00:00:00-03:00').toISOString();
-  const end   = new Date(dateStr + 'T23:59:59-03:00').toISOString();
-
-  const { data, error } = await supabase
-    .from('sales')
-    .select(`*, sale_items(id, quantity, price, variants(id, size, color, products(id, name)))`)
-    .eq('store_id', storeId)
-    .neq('status', 'anulada')
-    .gte('created_at', start)
-    .lte('created_at', end)
-    .order('created_at', { ascending: false });
-
-  if (loadingEl) loadingEl.classList.add('hidden');
-
-  if (error) { console.error('loadCashDay error:', error); showToast('Error cargando caja.', 'error'); return; }
-
-  const sales = data || [];
-
-  // Actualizar label
+async function initCashView() {
+  // Actualizar label de fecha
   const labelEl = document.getElementById('cashDateLabel');
   if (labelEl) {
-    const d = new Date(dateStr + 'T12:00:00');
-    labelEl.textContent = d.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const today = new Date();
+    labelEl.textContent = today.toLocaleDateString('es-AR', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
   }
 
-  if (sales.length === 0) {
-    if (emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.classList.add('flex'); }
-    renderCashKPIs([]);
-    renderCashBreakdown([]);
-    document.getElementById('cashSalesCount').textContent = '0 registros';
+  showCashState('checking');
+
+  // Verificar si existe una sesión abierta para este local
+  const { data, error } = await supabase
+    .from('cash_sessions')
+    .select('*')
+    .eq('store_id', storeId)
+    .eq('status', 'abierta')
+    .order('opened_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('initCashView error:', error);
+    showToast('Error al verificar la caja.', 'error');
+    showCashState('opening');
     return;
   }
 
+  if (data) {
+    // Hay sesión activa
+    currentCashSession = data;
+    showCashState('operating');
+    renderCashSessionMeta(data);
+    await loadCashSessionSales(data.id);
+  } else {
+    // No hay sesión abierta
+    currentCashSession = null;
+    showCashState('opening');
+    // Limpiar input por si el cajero volvió atrás
+    const input = document.getElementById('cashInitialAmount');
+    if (input) input.value = '';
+    loadCashSessionsHistory();
+  }
+}
+
+// Muestra hora de apertura en el estado operando
+function renderCashSessionMeta(session) {
+  const el = document.getElementById('cashSessionOpenedAt');
+  if (!el) return;
+  const rawTs = session.opened_at.endsWith('Z') || session.opened_at.includes('+')
+    ? session.opened_at
+    : session.opened_at + 'Z';
+  const date = new Date(rawTs);
+  const tz = { timeZone: 'America/Argentina/Buenos_Aires' };
+  el.textContent = `Apertura: ${date.toLocaleTimeString('es-AR', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false })} hs`;
+
+  // Fondo inicial
+  const initialEl = document.getElementById('cash-kpi-initial');
+  if (initialEl) {
+    initialEl.textContent = '$' + Number(session.initial_amount).toLocaleString('es-AR', { minimumFractionDigits: 0 });
+  }
+}
+
+// Abre una nueva sesión de caja
+window.openCashSession = async () => {
+  const input = document.getElementById('cashInitialAmount');
+  const initialAmount = parseFloat(input?.value) || 0;
+
+  const btn = document.getElementById('btnOpenCash');
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Abriendo...`; }
+
+  const { data, error } = await supabase
+    .from('cash_sessions')
+    .insert({ store_id: storeId, initial_amount: initialAmount, status: 'abierta' })
+    .select()
+    .single();
+
+  if (btn) { btn.disabled = false; btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg> Abrir Caja`; }
+
+  if (error) {
+    console.error('openCashSession error:', error);
+    showToast('Error al abrir la caja. Intentá de nuevo.', 'error');
+    return;
+  }
+
+  currentCashSession = data;
+  showToast('Caja abierta correctamente.', 'success');
+  showCashState('operating');
+  renderCashSessionMeta(data);
+  await loadCashSessionSales(data.id);
+};
+
+// Cierra la sesión activa (arqueo)
+window.closeCashSession = async () => {
+  if (!currentCashSession) return;
+
+  const confirmed = await showConfirm('Cerrar Caja', '¿Confirmás el cierre de caja? Se registrará el arqueo del turno.');
+  if (!confirmed) return;
+
+  const btn = document.getElementById('btnCloseCash');
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Cerrando...`; }
+
+  // Calcular total recaudado en efectivo para sugerencia de arqueo
+  const { data: salesData } = await supabase
+    .from('sales')
+    .select('total, payment_method')
+    .eq('session_id', currentCashSession.id)
+    .neq('status', 'anulada');
+
+  const cashSales = (salesData || [])
+    .filter(s => s.payment_method === 'Efectivo')
+    .reduce((acc, s) => acc + Number(s.total), 0);
+
+  const expectedCash = Number(currentCashSession.initial_amount) + cashSales;
+
+  const { error } = await supabase
+    .from('cash_sessions')
+    .update({
+      status: 'cerrada',
+      closed_at: new Date().toISOString(),
+      actual_amount: expectedCash,
+    })
+    .eq('id', currentCashSession.id);
+
+  if (btn) { btn.disabled = false; btn.innerHTML = `<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> Cerrar Caja`; }
+
+  if (error) {
+    console.error('closeCashSession error:', error);
+    showToast('Error al cerrar la caja. Intentá de nuevo.', 'error');
+    return;
+  }
+
+  currentCashSession = null;
+  showToast('Caja cerrada correctamente.', 'success');
+  showCashState('opening');
+
+  // Limpiar UI operativa
+  renderCashKPIs([]);
+  renderCashBreakdown([]);
+  const input = document.getElementById('cashInitialAmount');
+  if (input) input.value = '';
+
+  // Refrescar historial de cierres
+  loadCashSessionsHistory();
+};
+
+// Carga las ventas vinculadas a la sesión activa (solo métricas, sin lista)
+async function loadCashSessionSales(sessionId) {
+  const { data, error } = await supabase
+    .from('sales')
+    .select(`*, sale_items(id, quantity, price)`)
+    .eq('session_id', sessionId)
+    .neq('status', 'anulada')
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error('loadCashSessionSales error:', error); showToast('Error cargando ventas.', 'error'); return; }
+
+  const sales = data || [];
+
   renderCashKPIs(sales);
   renderCashBreakdown(sales);
-  document.getElementById('cashSalesCount').textContent = `${sales.length} registro${sales.length !== 1 ? 's' : ''}`;
 
-  const paymentColors = {
-    'Efectivo': 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    'Transferencia': 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    'Tarjeta de Débito': 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    'Tarjeta de Crédito': 'text-violet-400 bg-violet-500/10 border-violet-500/20',
-    'Otros': 'text-slate-300 bg-slate-500/10 border-slate-500/20',
-  };
+  // Efectivo esperado = fondo inicial + ventas en efectivo del turno
+  const cashSales = sales
+    .filter(s => s.payment_method === 'Efectivo')
+    .reduce((acc, s) => acc + Number(s.total), 0);
+  const expectedCash = Number(currentCashSession?.initial_amount || 0) + cashSales;
+  const expectedEl = document.getElementById('cash-kpi-cash-expected');
+  if (expectedEl) expectedEl.textContent = '$' + expectedCash.toLocaleString('es-AR', { minimumFractionDigits: 0 });
+}
 
-  sales.forEach((sale, idx) => {
-    const rawTs = sale.created_at.endsWith('Z') || sale.created_at.includes('+') ? sale.created_at : sale.created_at + 'Z';
-    const date = new Date(rawTs);
-    const tz = { timeZone: 'America/Argentina/Buenos_Aires' };
-    const timeStr = date.toLocaleTimeString('es-AR', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
-    const method = sale.payment_method || 'N/A';
-    const methodColor = paymentColors[method] || 'text-slate-400 bg-slate-500/10 border-slate-500/20';
-    const totalUnits = (sale.sale_items || []).reduce((s, i) => s + (i.quantity || 0), 0);
-    const detailId = `cash-detail-${sale.id}`;
+// Carga y renderiza el historial de cierres de caja
+async function loadCashSessionsHistory() {
+  const loadingEl  = document.getElementById('cashHistoryLoading');
+  const emptyEl    = document.getElementById('cashHistoryEmpty');
+  const listEl     = document.getElementById('cashHistoryList');
+  const headerEl   = document.getElementById('cashHistoryTableHeader');
+  const countEl    = document.getElementById('cashHistoryCount');
 
-    const itemsHtml = (sale.sale_items || []).length > 0
-      ? sale.sale_items.map(item => {
-          const variantLabel = [item.variants?.size, item.variants?.color].filter(Boolean).join(' · ');
-          const productName = item.variants?.products?.name || 'Producto';
-          return `<div class="flex items-center justify-between py-1 text-xs">
-            <div class="flex items-center gap-2">
-              <span class="w-5 h-5 bg-slate-800 rounded flex items-center justify-center text-[9px] font-bold text-slate-400">${item.quantity}</span>
-              <span class="text-slate-300">${productName}</span>
-              ${variantLabel ? `<span class="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">${variantLabel}</span>` : ''}
-            </div>
-            <span class="text-slate-400 font-medium">$${Number(item.price).toLocaleString('es-AR')}</span>
-          </div>`;
-        }).join('')
-      : `<p class="text-xs text-slate-600 py-1">Sin detalle.</p>`;
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (emptyEl)   emptyEl.classList.add('hidden');
+  if (headerEl)  headerEl.classList.add('hidden');
+  if (listEl)    listEl.innerHTML = '';
+
+  const { data, error } = await supabase
+    .from('cash_sessions')
+    .select('*')
+    .eq('store_id', storeId)
+    .eq('status', 'cerrada')
+    .order('closed_at', { ascending: false })
+    .limit(20);
+
+  if (loadingEl) loadingEl.classList.add('hidden');
+
+  if (error) {
+    console.error('loadCashSessionsHistory error:', error);
+    showToast('Error al cargar el historial.', 'error');
+    return;
+  }
+
+  const sessions = data || [];
+
+  if (countEl) countEl.textContent = sessions.length > 0 ? `${sessions.length} registro${sessions.length !== 1 ? 's' : ''}` : '';
+
+  if (sessions.length === 0) {
+    if (emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.classList.add('flex'); }
+    return;
+  }
+
+  if (headerEl) headerEl.classList.remove('hidden');
+
+  const tz = { timeZone: 'America/Argentina/Buenos_Aires' };
+
+  sessions.forEach(session => {
+    const fmtTs = (ts) => {
+      if (!ts) return '—';
+      const raw = ts.endsWith('Z') || ts.includes('+') ? ts : ts + 'Z';
+      const d = new Date(raw);
+      return d.toLocaleDateString('es-AR', { ...tz, day: '2-digit', month: '2-digit' })
+        + ' ' + d.toLocaleTimeString('es-AR', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
+    };
+
+    const openedStr  = fmtTs(session.opened_at);
+    const closedStr  = fmtTs(session.closed_at);
+    const initial    = Number(session.initial_amount || 0);
+    const actual     = Number(session.actual_amount  || 0);
+    // Calcular duración aproximada
+    let duracion = '';
+    if (session.opened_at && session.closed_at) {
+      const openRaw   = session.opened_at.endsWith('Z') || session.opened_at.includes('+') ? session.opened_at : session.opened_at + 'Z';
+      const closeRaw  = session.closed_at.endsWith('Z') || session.closed_at.includes('+') ? session.closed_at : session.closed_at + 'Z';
+      const diffMs    = new Date(closeRaw) - new Date(openRaw);
+      const diffHrs   = Math.floor(diffMs / 3600000);
+      const diffMins  = Math.floor((diffMs % 3600000) / 60000);
+      duracion = diffHrs > 0 ? `${diffHrs}h ${diffMins}m` : `${diffMins}m`;
+    }
 
     const row = document.createElement('div');
     row.innerHTML = `
-      <div class="hidden md:grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-800/40 transition-colors cursor-pointer group" onclick="toggleCashDetail('${sale.id}')">
-        <span class="col-span-1 text-xs font-bold text-slate-600">#${idx + 1}</span>
-        <span class="col-span-3 text-xs font-semibold text-white">${timeStr}</span>
+      <!-- Desktop -->
+      <div class="hidden md:grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-800/30 transition-colors">
         <div class="col-span-3">
-          <span class="inline-flex items-center text-[11px] font-semibold px-2 py-1 rounded-md border ${methodColor}">${method}</span>
+          <p class="text-xs font-semibold text-white">${openedStr}</p>
+          ${duracion ? `<p class="text-[10px] text-slate-500 mt-0.5">${duracion} de turno</p>` : ''}
         </div>
-        <span class="col-span-2 text-xs text-slate-300">${totalUnits} u.</span>
-        <span class="col-span-2 text-right text-sm font-bold text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
-        <div class="col-span-1 flex justify-end">
-          <svg id="cash-chevron-${sale.id}" class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        <div class="col-span-3">
+          <p class="text-xs text-slate-300">${closedStr}</p>
+        </div>
+        <div class="col-span-2">
+          <p class="text-xs text-slate-300">$${initial.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+        </div>
+        <div class="col-span-2">
+          <p class="text-xs font-semibold text-emerald-400">$${actual.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+        </div>
+        <div class="col-span-2 text-right">
+          <p class="text-sm font-black text-white">$${(actual - initial).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
         </div>
       </div>
-      <div class="md:hidden flex items-center justify-between px-4 py-3 cursor-pointer active:bg-slate-800/40 transition" onclick="toggleCashDetail('${sale.id}')">
-        <div class="flex items-center gap-3">
-          <span class="text-[10px] font-bold text-slate-600 flex-shrink-0">#${idx + 1}</span>
+      <!-- Mobile -->
+      <div class="md:hidden px-4 py-3">
+        <div class="flex items-center justify-between mb-1">
           <div>
-            <p class="text-xs font-semibold text-white">${timeStr}</p>
-            <span class="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border ${methodColor} mt-0.5">${method}</span>
+            <p class="text-xs font-semibold text-white">${openedStr}</p>
+            <p class="text-[10px] text-slate-500">${closedStr}${duracion ? ' · ' + duracion : ''}</p>
           </div>
+          <p class="text-sm font-black text-white">$${(actual - initial).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
         </div>
-        <span class="text-sm font-black text-white">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
-      </div>
-      <div id="${detailId}" class="hidden px-4 pb-4 pt-1 bg-slate-800/20 border-t border-slate-800/50">
-        <div class="bg-slate-900/80 rounded-lg p-3 border border-slate-800">
-          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Ítems</p>
-          <div class="divide-y divide-slate-800/50">${itemsHtml}</div>
-          <div class="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-700">
-            <button onclick="anularVenta('${sale.id}')" class="flex items-center gap-1.5 text-[11px] font-semibold text-red-400 hover:text-white hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1.5 rounded-lg transition-all">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-              Anular
-            </button>
-            <span class="text-sm font-black text-indigo-400">$${Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
-          </div>
+        <div class="flex gap-3 mt-1.5">
+          <span class="text-[10px] text-slate-400">Fondo: <span class="text-slate-300 font-semibold">$${initial.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span></span>
+          <span class="text-[10px] text-slate-400">Efectivo: <span class="text-emerald-400 font-semibold">$${actual.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span></span>
         </div>
       </div>
     `;
     listEl.appendChild(row);
   });
-};
-
-window.toggleCashDetail = (saleId) => {
-  const detail = document.getElementById(`cash-detail-${saleId}`);
-  const chevron = document.getElementById(`cash-chevron-${saleId}`);
-  if (!detail) return;
-  const isHidden = detail.classList.contains('hidden');
-  detail.classList.toggle('hidden', !isHidden);
-  if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-};
+}
 
 function renderCashKPIs(sales) {
   const total = sales.reduce((a, s) => a + Number(s.total), 0);
@@ -1586,6 +1833,7 @@ async function loadPaymentMethods() {
   }
 
   renderPaymentMethodRows(methods);
+  updatePaymentSelects(methods);
 }
 
 function renderPaymentMethodRows(methods) {
@@ -1596,26 +1844,35 @@ function renderPaymentMethodRows(methods) {
     div.className = 'flex items-center gap-2 pm-row';
     div.innerHTML = `
       <input type="text" value="${m}" class="pm-input flex-1 p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
-      <button onclick="this.closest('.pm-row').remove()" class="w-8 h-8 flex-shrink-0 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg border border-transparent hover:border-red-500/30 transition-all">
+      <button onclick="removePaymentMethodRow(this)" class="w-8 h-8 flex-shrink-0 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg border border-transparent hover:border-red-500/30 transition-all">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     `;
     list.appendChild(div);
   });
 }
-
 window.addPaymentMethodRow = () => {
   const list = document.getElementById('paymentMethodsList');
   const div = document.createElement('div');
   div.className = 'flex items-center gap-2 pm-row';
   div.innerHTML = `
     <input type="text" placeholder="Ej: Mercado Pago" class="pm-input flex-1 p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
-    <button onclick="this.closest('.pm-row').remove()" class="w-8 h-8 flex-shrink-0 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg border border-transparent hover:border-red-500/30 transition-all">
+    <button onclick="removePaymentMethodRow(this)" class="w-8 h-8 flex-shrink-0 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg border border-transparent hover:border-red-500/30 transition-all">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
     </button>
   `;
   list.appendChild(div);
   div.querySelector('.pm-input').focus();
+};
+window.removePaymentMethodRow = (btn) => {
+  btn.closest('.pm-row').remove();
+  const currentMethods = [...document.querySelectorAll('.pm-input')]
+    .map(i => i.value.trim())
+    .filter(Boolean);
+  updatePaymentSelects(currentMethods);
+  
+  // Guardado automático al eliminar
+  savePaymentMethods();
 };
 
 window.savePaymentMethods = async () => {
@@ -1627,7 +1884,6 @@ window.savePaymentMethods = async () => {
     showAlert('Error', 'Necesitás al menos un método de pago habilitado.', 'error');
     return;
   }
-
   const btn = document.querySelector('[onclick="savePaymentMethods()"]');
   const origText = btn ? btn.textContent : '';
   if (btn) { btn.textContent = 'Guardando...'; btn.disabled = true; }
