@@ -12,6 +12,13 @@
     .fade-in { animation: fadeIn 0.4s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   </style>
+  <link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#6366f1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stockware">
+<link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body class="bg-[#0B1120] flex items-center justify-center h-screen selection:bg-indigo-500 selection:text-white">
 
@@ -48,5 +55,11 @@
   </div>
 
   <script type="module" src="app.js"></script>
+
+  <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js');
+  }
+</script>
 </body>
 </html>
