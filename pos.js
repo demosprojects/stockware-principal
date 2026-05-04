@@ -4,6 +4,36 @@ const supabaseUrl = "https://fxqomvjynncaigwoasqp.supabase.co";
 const supabaseKey = "sb_publishable_Mwq88wTGFEHF9zvvM7xWmw_9FQmjlZO";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// ===== CLOUDINARY CONFIG =====
+const CLOUDINARY_CLOUD_NAME = "dmq1u3vdf";
+const CLOUDINARY_UPLOAD_PRESET = "stockware_unsigned";
+
+async function uploadToCloudinary(file, folder) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  formData.append("folder", folder);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) throw new Error("Error al subir imagen a Cloudinary");
+  const data = await res.json();
+  return data.secure_url;
+}
+
+// Sanitiza el nombre del archivo para usarlo como public_id
+function sanitizeFilename(name) {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_\-]/g, '')
+    .substring(0, 60) || 'imagen';
+}
+// ===== FIN CLOUDINARY =====
+
 const storeId = localStorage.getItem("store_id");
 let products = [];
 let cart = [];
@@ -17,9 +47,6 @@ let currentCashSession = null; // Sesión de caja activa
 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
 document.getElementById('currentDateDisplay').innerText = new Intl.DateTimeFormat('es-AR', options).format(new Date());
 
-// ==========================================
-// 1. INICIALIZACIÓN Y SEGURIDAD (CON VERIFICACIÓN DE SUSCRIPCIÓN)
-// ==========================================
 async function initPos() {
   const { data: userData } = await supabase.auth.getUser();
   
@@ -210,9 +237,6 @@ function startPaymentPolling(preferenceId) {
   }, 5000);
 }
 
-// ==========================================
-// 2. ENRUTADOR (SPA NAV)
-// ==========================================
 window.switchView = (view) => {
   document.getElementById("posView").classList.add("hidden");
   document.getElementById("productsView").classList.add("hidden");
@@ -238,9 +262,6 @@ window.switchView = (view) => {
   if (view === "cash") initCashView();
 };
 
-// ==========================================
-// 3. CARGA Y RENDERIZADO BÁSICO
-// ==========================================
 async function loadProducts() {
   const loading = document.getElementById("loadingProducts");
   if(loading) loading.style.display = "block";
@@ -263,9 +284,6 @@ async function loadProducts() {
   renderProductsTable();
 }
 
-// ==========================================
-// 4. MÓDULO POS (Terminal)
-// ==========================================
 function renderPosGrid(productsToRender) {
   const grid = document.getElementById("productsGrid");
   grid.innerHTML = "";
@@ -296,7 +314,8 @@ function renderPosGrid(productsToRender) {
         <div class="w-full h-36 bg-slate-900 rounded-lg mb-3 flex items-center justify-center text-slate-700 group-hover:text-indigo-400 group-hover:bg-indigo-500/10 transition-colors duration-300 overflow-hidden">
            ${imgHtml}
         </div>
-        <h3 class="font-semibold text-sm text-white leading-tight mb-1 truncate">${prod.name}</h3>
+        <h3 class="font-semibold text-sm text-white leading-tight mb-0.5 truncate">${prod.name}</h3>
+        ${prod.sku ? `<p class="text-[10px] text-slate-500 mb-1 font-mono truncate">${prod.sku}</p>` : '<div class="mb-1"></div>'}
         <p class="text-[10px] text-slate-400 mb-2">Stock: <span class="${stockTotal > 0 ? 'text-green-400' : 'text-red-400'}">${stockTotal}u</span></p>
       </div>
       <div class="flex justify-between items-end">
@@ -312,7 +331,10 @@ function renderPosGrid(productsToRender) {
 
 document.getElementById("searchInput").addEventListener("input", (e) => {
   const term = e.target.value.toLowerCase();
-  const filtered = products.filter(p => p.name.toLowerCase().includes(term));
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(term) ||
+    (p.sku && p.sku.toLowerCase().includes(term))
+  );
   renderPosGrid(filtered);
 });
 
@@ -357,9 +379,7 @@ window.closeVariantModal = () => {
   currentSelectedProduct = null;
 };
 
-// ==========================================
-// TICKET Y MODAL DE VENTA EXITOSA
-// ==========================================
+
 window.closeSuccessModal = () => {
   document.getElementById("successModal").classList.add("hidden");
 };
@@ -372,6 +392,12 @@ function addToCart(productId, variant) {
   
   const product = products.find(p => p.id === productId);
   if (!product) return;
+
+// Verificar que haya stock antes de agregar
+  if (variant && variant.stock <= 0) {
+    showAlert('Sin stock', 'Este producto no tiene stock disponible.', 'warning');
+    return;
+  }
 
   const cartItemId = variant ? `${product.id}-${variant.id}` : product.id;
   const existingItem = cart.find(item => item.cartId === cartItemId);
@@ -388,6 +414,7 @@ function addToCart(productId, variant) {
       productId: product.id,
       variantId: variant ? variant.id : null,
       name: product.name,
+      sku: product.sku || null,
       price: product.price,
       size: variant ? variant.size : '',
       color: variant ? variant.color : '',
@@ -397,7 +424,51 @@ function addToCart(productId, variant) {
   }
   renderCart();
 }
+window.copyTicketImage = async () => {
+    const btn = document.getElementById("btnCopyImage");
+    const originalHTML = btn.innerHTML;
+    
+    // Mostramos un estado de carga visual
+    btn.innerHTML = `<span class="animate-pulse text-xs">Copiando...</span>`;
+    btn.disabled = true;
+    
+    const ticketEl = document.getElementById("ticketCaptureArea");
+    
+    try {
+        // Generamos el canvas igual que en la descarga
+        const canvas = await html2canvas(ticketEl, {
+            scale: 3,
+            backgroundColor: "#FFFFFF",
+            useCORS: true,
+            allowTaint: true,
+            logging: false
+        });
 
+        // Convertimos el canvas a un Blob (archivo binario en memoria)
+        canvas.toBlob(async (blob) => {
+            try {
+                // Escribimos el blob en el portapapeles
+                const item = new ClipboardItem({ "image/png": blob });
+                await navigator.clipboard.write([item]);
+                
+                showToast("¡Imagen copiada! ", "success");
+            } catch (err) {
+                console.error("Error al copiar al portapapeles:", err);
+                showToast("Tu navegador no permite copiar imágenes. Usá descargar.", "warning");
+            } finally {
+                // Restauramos el botón
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        }, "image/png");
+
+    } catch (e) {
+        console.error("Error generando ticket:", e);
+        showToast("Error al generar la imagen", "error");
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }
+};
 function renderCart() {
   const container = document.getElementById("cartItems");
   const mobileContainer = document.getElementById("mobileCartItems");
@@ -585,9 +656,6 @@ window.checkout = async () => {
   loadProducts(); 
 };
 
-// ==========================================
-// RENDERIZADO Y EXPORTACIÓN DEL TICKET
-// ==========================================
 function renderTicketPreview(sale, cartItems, method) {
     const logoWrapper = document.getElementById("tkLogoWrapper");
     const logoImg = document.getElementById("tkLogo");
@@ -625,7 +693,8 @@ function renderTicketPreview(sale, cartItems, method) {
         itemsContainer.innerHTML += `
             <div class="flex justify-between items-start">
                 <div class="flex-1 leading-tight pr-2">
-                    <span class="font-bold">${item.qty}x</span> ${item.name}${variantLabel}
+                    <div><span class="font-bold">${item.qty}x</span> ${item.name}${variantLabel}</div>
+                    ${item.sku ? `<div style="font-size:9px;color:#9ca3af;font-family:monospace;margin-top:1px;">${item.sku}</div>` : ''}
                 </div>
                 <div class="font-bold">
                     $${itemTotal.toLocaleString('es-AR')}
@@ -699,6 +768,7 @@ window.reprintTicket = (saleId) => {
 
     const cartItems = (sale.sale_items || []).map(item => ({
         name: item.variants?.products?.name || 'Producto',
+        sku: item.variants?.products?.sku || null,
         size: item.variants?.size || '',
         color: item.variants?.color || '',
         qty: item.quantity,
@@ -712,7 +782,7 @@ window.reprintTicket = (saleId) => {
         closeBtn.innerText = "Cerrar";
         closeBtn.onclick = () => {
             document.getElementById("successModal").classList.add("hidden");
-            closeBtn.innerText = "Nueva Venta";
+            closeBtn.innerText = "Cerrar";
             closeBtn.onclick = closeSuccessModal;
         };
     }
@@ -750,9 +820,6 @@ window.downloadTicketImage = async () => {
     }
 };
 
-// ==========================================
-// 5. MÓDULO GESTIÓN DE PRODUCTOS
-// ==========================================
 function renderProductsTable() {
   const grid = document.getElementById("productsCardGrid");
   if (!grid) return;
@@ -789,7 +856,8 @@ function renderProductsTable() {
         <div class="w-full h-36 bg-slate-900 rounded-lg mb-3 flex items-center justify-center text-slate-700 overflow-hidden">
           ${imgHtml}
         </div>
-        <h3 class="font-semibold text-sm text-white leading-tight mb-1 truncate">${prod.name}</h3>
+        <h3 class="font-semibold text-sm text-white leading-tight mb-0.5 truncate">${prod.name}</h3>
+        ${prod.sku ? `<p class="text-[10px] text-slate-500 font-mono mb-1 truncate">${prod.sku}</p>` : '<div class="mb-1"></div>'}
         <p class="text-sm font-bold text-indigo-400 mb-2">$${Number(prod.price).toLocaleString('es-AR')}</p>
         <div class="flex flex-wrap gap-1 mb-2">${variantBadges}${extraVariants}</div>
       </div>
@@ -810,15 +878,20 @@ function renderProductsTable() {
 }
 
 window.openProductModal = () => {
-  document.getElementById("pName").value = "";
-  document.getElementById("pPrice").value = "";
-  document.getElementById("pStock").value = "";
-  document.getElementById("pImageUrl").value = "";
-  document.getElementById("pImagePreview").innerHTML = `<svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
-  document.getElementById("variantsContainer").innerHTML = "";
+  const get = (id) => document.getElementById(id);
+  if (!get("addProductModal")) return; // DOM no listo aún
+  get("pName").value = "";
+  get("pPrice").value = "";
+  if (get("pSku")) get("pSku").value = "";
+  get("pStock").value = "";
+  get("pImageUrl").value = "";
+  if (get("pImageFile")) get("pImageFile").value = "";
+  if (get("pImageLabel")) get("pImageLabel").textContent = "Seleccionar imagen...";
+  get("pImagePreview").innerHTML = `<svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
+  get("variantsContainer").innerHTML = "";
   // Mostrar stock simple al inicio (sin variantes)
-  document.getElementById("pStockWrapper").classList.remove("hidden");
-  document.getElementById("addProductModal").classList.remove("hidden");
+  get("pStockWrapper").classList.remove("hidden");
+  get("addProductModal").classList.remove("hidden");
 };
 
 window.closeProductModal = () => {
@@ -855,10 +928,28 @@ window.removeVariantRow = (rowId) => {
 window.saveProduct = async () => {
   const name = document.getElementById("pName").value.trim();
   const price = document.getElementById("pPrice").value;
-  const image_url = document.getElementById("pImageUrl").value.trim() || null;
+  const sku = (document.getElementById("pSku")?.value || "").trim() || null;
   const btn = document.getElementById("btnSaveProduct");
   
   if (!name || !price) { showAlert('Campos requeridos', 'Completá el nombre y el precio base del producto.', 'warning'); return; }
+
+  // Subir imagen a Cloudinary si hay archivo seleccionado
+  let image_url = document.getElementById("pImageUrl").value.trim() || null;
+  const imageFile = document.getElementById("pImageFile")?.files?.[0];
+  if (imageFile) {
+    btn.innerText = "Subiendo imagen...";
+    btn.disabled = true;
+    try {
+      const productSlug = sanitizeFilename(name || 'producto');
+      const folder = `stockware/store_${storeId}/productos`;
+      image_url = await uploadToCloudinary(imageFile, folder);
+    } catch (e) {
+      btn.innerText = "Guardar";
+      btn.disabled = false;
+      showAlert('Error de imagen', 'No se pudo subir la imagen. Intentá de nuevo.', 'error');
+      return;
+    }
+  }
 
   const variantRows = document.querySelectorAll('.variant-row');
   let variantsData = [];
@@ -880,7 +971,7 @@ window.saveProduct = async () => {
 
   const { data: newProduct, error: prodError } = await supabase
     .from("products")
-    .insert([{ store_id: storeId, name, price, image_url }])
+    .insert([{ store_id: storeId, name, price, image_url, sku }])
     .select().single();
 
   if (prodError) {
@@ -913,19 +1004,23 @@ window.deleteProduct = async (id) => {
   loadProducts();
 };
 
-// ==========================================
-// 6. MÓDULO EDICIÓN DE PRODUCTOS
-// ==========================================
 window.openEditProductModal = (productId) => {
   const prod = products.find(p => p.id === productId);
   if (!prod) return;
 
-  document.getElementById("editPId").value = prod.id;
-  document.getElementById("editPName").value = prod.name;
-  document.getElementById("editPPrice").value = prod.price;
+  const _g = (id) => document.getElementById(id);
+  _g("editPId").value = prod.id;
+  _g("editPName").value = prod.name;
+  _g("editPPrice").value = prod.price;
+  if (_g("editPSku")) _g("editPSku").value = prod.sku || "";
   
   const imgUrl = prod.image_url || '';
   document.getElementById("editPImageUrl").value = imgUrl;
+  // Resetear file input
+  const editFileInput = document.getElementById("editPImageFile");
+  if (editFileInput) editFileInput.value = "";
+  const editLabel = document.getElementById("editPImageLabel");
+  if (editLabel) editLabel.textContent = imgUrl ? "Imagen actual (subir nueva para cambiar)" : "Seleccionar imagen...";
   const preview = document.getElementById("editPImagePreview");
   if (imgUrl) {
     preview.innerHTML = `<img src="${imgUrl}" class="w-full h-full object-cover rounded-lg" onerror="this.parentElement.innerHTML='<svg class=\\'w-5 h-5 text-slate-600\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\'></path></svg>'">`;
@@ -993,17 +1088,34 @@ window.updateProduct = async () => {
   const id = document.getElementById("editPId").value;
   const name = document.getElementById("editPName").value.trim();
   const price = document.getElementById("editPPrice").value;
-  const image_url = document.getElementById("editPImageUrl").value.trim() || null;
+  const sku = (document.getElementById("editPSku")?.value || "").trim() || null;
+  let image_url = document.getElementById("editPImageUrl").value.trim() || null;
   const btn = document.getElementById("btnUpdateProduct");
 
   if (!name || !price) { showAlert('Campos requeridos', 'Completá el nombre y el precio del producto.', 'warning'); return; }
+
+  // Subir imagen a Cloudinary si hay archivo nuevo seleccionado
+  const imageFile = document.getElementById("editPImageFile")?.files?.[0];
+  if (imageFile) {
+    btn.innerText = "Subiendo imagen...";
+    btn.disabled = true;
+    try {
+      const folder = `stockware/store_${storeId}/productos`;
+      image_url = await uploadToCloudinary(imageFile, folder);
+    } catch (e) {
+      btn.innerText = "Guardar cambios";
+      btn.disabled = false;
+      showAlert('Error de imagen', 'No se pudo subir la imagen. Intentá de nuevo.', 'error');
+      return;
+    }
+  }
 
   btn.innerText = "Guardando...";
   btn.disabled = true;
 
   const { error: prodError } = await supabase
     .from("products")
-    .update({ name, price, image_url })
+    .update({ name, price, image_url, sku })
     .eq("id", id);
 
   if (prodError) {
@@ -1074,29 +1186,34 @@ window.updateProduct = async () => {
   loadProducts();
 };
 
-// ==========================================
-// 7. PREVIEW DE IMÁGENES
-// ==========================================
-function setupImagePreview(inputId, previewId) {
-  const input = document.getElementById(inputId);
-  const preview = document.getElementById(previewId);
-  if (!input || !preview) return;
-  input.addEventListener("input", () => {
-    const url = input.value.trim();
-    if (url) {
-      preview.innerHTML = `<img src="${url}" class="w-full h-full object-cover rounded-lg" onerror="this.parentElement.innerHTML='<svg class=\\'w-5 h-5 text-slate-600\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\'></path></svg>'">`;
-    } else {
-      preview.innerHTML = `<svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
-    }
-  });
-}
-setupImagePreview("pImageUrl", "pImagePreview");
-setupImagePreview("editPImageUrl", "editPImagePreview");
-setupImagePreview("confLogo", "confLogoPreview");
+// ===== HANDLERS DE SELECCIÓN DE IMAGEN (file input) =====
 
-// ==========================================
-// 8. MÓDULO VENTAS (Historial)
-// ==========================================
+// Muestra preview local al seleccionar archivo (sin subir aún)
+window.handleProductImageSelect = (input, labelId, previewId) => {
+  const file = input.files?.[0];
+  if (!file) return;
+  const label = document.getElementById(labelId);
+  const preview = document.getElementById(previewId);
+  if (label) label.textContent = file.name;
+  if (preview) {
+    const url = URL.createObjectURL(file);
+    preview.innerHTML = `<img src="${url}" class="w-full h-full object-cover rounded-lg">`;
+  }
+};
+
+// Logo: igual que producto
+window.handleLogoSelect = (input) => {
+  const file = input.files?.[0];
+  if (!file) return;
+  const label = document.getElementById('confLogoLabel');
+  const preview = document.getElementById('confLogoPreview');
+  if (label) label.textContent = file.name;
+  if (preview) {
+    const url = URL.createObjectURL(file);
+    preview.innerHTML = `<img src="${url}" class="w-full h-full object-contain rounded-lg p-0.5">`;
+  }
+};
+
 window.setSalesPeriod = (period) => {
   salesPeriod = period;
   document.querySelectorAll('.sales-period-btn').forEach(btn => {
@@ -1309,7 +1426,7 @@ async function loadSales() {
         id, quantity, price,
         variants (
           id, size, color,
-          products ( id, name )
+          products ( id, name, sku )
         )
       )
     `)
@@ -1327,9 +1444,6 @@ async function loadSales() {
   applySalesFilters();
 }
 
-// ==========================================
-// 9. MÓDULO CONFIGURACIÓN
-// ==========================================
 window.loadConfig = async () => {
   if (!storeId) return;
 
@@ -1352,8 +1466,22 @@ window.loadConfig = async () => {
   document.getElementById("configProgressBar").className = `h-full rounded-full ${barColor}`;
   document.getElementById("configProgressBar").style.width = `${progressPercent}%`;
 
-  document.getElementById("confLogo").value = store.logo_url || "";
-  document.getElementById("confLogo").dispatchEvent(new Event('input'));
+  const logoUrl = store.logo_url || "";
+  document.getElementById("confLogo").value = logoUrl;
+  // Mostrar preview del logo guardado
+  const confPreview = document.getElementById("confLogoPreview");
+  const confLabel = document.getElementById("confLogoLabel");
+  if (confPreview) {
+    if (logoUrl) {
+      confPreview.innerHTML = `<img src="${logoUrl}" class="w-full h-full object-contain rounded-lg p-0.5">`;
+    } else {
+      confPreview.innerHTML = `<svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
+    }
+  }
+  if (confLabel) confLabel.textContent = logoUrl ? "Logo actual (subir nuevo para cambiar)" : "Seleccionar logo...";
+  // Resetear file input
+  const confLogoFile = document.getElementById("confLogoFile");
+  if (confLogoFile) confLogoFile.value = "";
   document.getElementById("confPhone").value = store.phone || "";
   document.getElementById("confInstagram").value = store.instagram || "";
   document.getElementById("confAddress").value = store.address || "";
@@ -1365,10 +1493,28 @@ window.saveConfig = async () => {
   const btn = document.getElementById("btnSaveConfig");
   const originalText = btn.innerText;
 
-  const logo_url = document.getElementById("confLogo").value.trim() || null;
+  let logo_url = document.getElementById("confLogo").value.trim() || null;
   const phone = document.getElementById("confPhone").value.trim();
   const instagram = document.getElementById("confInstagram").value.trim();
   const address = document.getElementById("confAddress").value.trim();
+
+  // Subir logo a Cloudinary si hay archivo nuevo
+  const logoFile = document.getElementById("confLogoFile")?.files?.[0];
+  if (logoFile) {
+    btn.innerText = "Subiendo logo...";
+    btn.disabled = true;
+    try {
+      const folder = `stockware/store_${storeId}/logo`;
+      logo_url = await uploadToCloudinary(logoFile, folder);
+      // Actualizar el hidden input y el preview
+      document.getElementById("confLogo").value = logo_url;
+    } catch (e) {
+      btn.innerText = originalText;
+      btn.disabled = false;
+      showAlert('Error de imagen', 'No se pudo subir el logo. Intentá de nuevo.', 'error');
+      return;
+    }
+  }
 
   btn.innerText = "Guardando...";
   btn.disabled = true;
@@ -1397,9 +1543,6 @@ window.logout = async () => {
   window.location.href = "index.html";
 };
 
-// ==========================================
-// 10. ANULAR VENTA
-// ==========================================
 window.anularVenta = async (saleId) => {
   // Verificar estado actual antes de operar (evita doble anulación y doble reposición de stock)
   const { data: saleCheck, error: checkErr } = await supabase
@@ -1453,10 +1596,6 @@ window.anularVenta = async (saleId) => {
   loadSales();
   loadProducts();
 };
-
-// ==========================================
-// 11. MÓDULO CAJA DIARIA (con sesiones)
-// ==========================================
 
 // Muestra el sub-estado correcto dentro de cashView
 function showCashState(state) {
@@ -1799,11 +1938,6 @@ function renderCashBreakdown(sales) {
     }).join('');
 }
 
-// ==========================================
-// 12. MÉTODOS DE PAGO EN CONFIGURACIÓN
-// ==========================================
-// Tabla: store_payment_methods (store_id, name, position)
-// Fallback: si la tabla no existe, usa lista hardcodeada localmente en stores.payment_methods (jsonb)
 
 const DEFAULT_PAYMENT_METHODS = ['Efectivo', 'Transferencia', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Otros'];
 
@@ -1943,9 +2077,6 @@ function updatePaymentSelects(methods) {
   });
 }
 
-// ==========================================
-// MODAL ALERT & CONFIRM
-// ==========================================
 function showAlert(title, message, type = 'warning') {
   const modal = document.getElementById('posAlertModal');
   document.getElementById('posAlertTitle').innerText = title;
@@ -2000,9 +2131,6 @@ window.closePosConfirm = (result) => {
   if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
 };
 
-// ==========================================
-// TOAST NOTIFICATIONS
-// ==========================================
 function showToast(message, type = 'success') {
   const existing = document.getElementById('posToast');
   if (existing) existing.remove();
@@ -2025,10 +2153,6 @@ function showToast(message, type = 'success') {
   setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateY(8px)'; setTimeout(() => toast.remove(), 300); }, 3200);
 }
 // ==========================================
-// EXPONER FUNCIONES GLOBALMENTE PARA EL HTML
-// Se usan nombres con prefijo _posModule para no pisar los wrappers
-// del script inline del HTML (que sirven de fallback antes de que cargue el módulo).
-// ==========================================
 window._posModuleCopyText = (text) => {
   navigator.clipboard.writeText(text);
   showToast("Copiado al portapapeles", "success");
@@ -2043,3 +2167,4 @@ window._posModuleCopyPaymentInfo = () => {
 window._posModuleGeneratePaymentLink = window.generatePaymentLink;
 // Start
 initPos();
+document.dispatchEvent(new Event('pos-module-ready'));
