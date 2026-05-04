@@ -264,7 +264,7 @@ window.switchView = (view) => {
 
 async function loadProducts() {
   const loading = document.getElementById("loadingProducts");
-  if(loading) loading.style.display = "block";
+  if (loading) loading.classList.remove("hidden");
 
   const { data, error } = await supabase
     .from("products")
@@ -272,7 +272,7 @@ async function loadProducts() {
     .eq("store_id", storeId)
     .order('created_at', { ascending: false });
 
-  if(loading) loading.style.display = "none";
+  if (loading) loading.classList.add("hidden");
 
   if (error) {
     console.error(error);
@@ -1270,22 +1270,36 @@ function renderSalesKPIs(sales) {
   document.getElementById("kpi-units").innerText = units;
 }
 
+function setSalesState(state) {
+  // state: 'loading' | 'empty' | 'data'
+  const loading = document.getElementById("salesLoadingState");
+  const empty   = document.getElementById("salesEmptyState");
+  const wrapper = document.getElementById("salesTableWrapper");
+  const header  = document.getElementById("salesTableHeader");
+
+  [loading, empty, wrapper].forEach(el => { if (el) el.classList.add("hidden"); });
+
+  if (state === 'loading' && loading) {
+    loading.classList.remove("hidden");
+  } else if (state === 'empty' && empty) {
+    empty.classList.remove("hidden");
+    if (header) header.classList.add("hidden");
+  } else if (state === 'data' && wrapper) {
+    wrapper.classList.remove("hidden");
+    if (header) header.classList.remove("hidden");
+  }
+}
+
 function renderSalesList(sales) {
   const list = document.getElementById("salesList");
-  const emptyState = document.getElementById("salesEmptyState");
-  const header = document.getElementById("salesTableHeader");
   list.innerHTML = "";
 
   if (sales.length === 0) {
-    emptyState.classList.remove("hidden");
-    emptyState.classList.add("flex");
-    header.classList.add("hidden");
+    setSalesState('empty');
     return;
   }
 
-  emptyState.classList.add("hidden");
-  emptyState.classList.remove("flex");
-  header.classList.remove("hidden");
+  setSalesState('data');
 
   const paymentIcons = {
     'Efectivo': `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 002-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>`,
@@ -1415,8 +1429,7 @@ window.toggleSaleDetail = (saleId) => {
 };
 
 async function loadSales() {
-  const loadingEl = document.getElementById("salesLoadingState");
-  if (loadingEl) loadingEl.classList.remove("hidden");
+  setSalesState('loading');
 
   const { data, error } = await supabase
     .from("sales")
@@ -1433,10 +1446,9 @@ async function loadSales() {
     .eq("store_id", storeId)
     .order("created_at", { ascending: false });
 
-  if (loadingEl) loadingEl.classList.add("hidden");
-
   if (error) {
     console.error("Error cargando ventas:", error);
+    setSalesState('empty');
     return;
   }
 
@@ -1779,16 +1791,26 @@ async function loadCashSessionSales(sessionId) {
 
 // Carga y renderiza el historial de cierres de caja
 async function loadCashSessionsHistory() {
-  const loadingEl  = document.getElementById('cashHistoryLoading');
-  const emptyEl    = document.getElementById('cashHistoryEmpty');
-  const listEl     = document.getElementById('cashHistoryList');
-  const headerEl   = document.getElementById('cashHistoryTableHeader');
-  const countEl    = document.getElementById('cashHistoryCount');
+  const loadingEl = document.getElementById('cashHistoryLoading');
+  const emptyEl   = document.getElementById('cashHistoryEmpty');
+  const wrapperEl = document.getElementById('cashHistoryTableWrapper');
+  const headerEl  = document.getElementById('cashHistoryTableHeader');
+  const listEl    = document.getElementById('cashHistoryList');
+  const countEl   = document.getElementById('cashHistoryCount');
 
-  if (loadingEl) loadingEl.classList.remove('hidden');
-  if (emptyEl)   emptyEl.classList.add('hidden');
-  if (headerEl)  headerEl.classList.add('hidden');
-  if (listEl)    listEl.innerHTML = '';
+  // Helper para cambiar estado
+  const setCashHistoryState = (state) => {
+    [loadingEl, emptyEl, wrapperEl].forEach(el => { if (el) el.classList.add('hidden'); });
+    if (state === 'loading' && loadingEl) loadingEl.classList.remove('hidden');
+    else if (state === 'empty' && emptyEl)  emptyEl.classList.remove('hidden');
+    else if (state === 'data' && wrapperEl) {
+      wrapperEl.classList.remove('hidden');
+      if (headerEl) headerEl.classList.remove('hidden');
+    }
+  };
+
+  setCashHistoryState('loading');
+  if (listEl) listEl.innerHTML = '';
 
   const { data, error } = await supabase
     .from('cash_sessions')
@@ -1798,11 +1820,10 @@ async function loadCashSessionsHistory() {
     .order('closed_at', { ascending: false })
     .limit(20);
 
-  if (loadingEl) loadingEl.classList.add('hidden');
-
   if (error) {
     console.error('loadCashSessionsHistory error:', error);
     showToast('Error al cargar el historial.', 'error');
+    setCashHistoryState('empty');
     return;
   }
 
@@ -1811,11 +1832,11 @@ async function loadCashSessionsHistory() {
   if (countEl) countEl.textContent = sessions.length > 0 ? `${sessions.length} registro${sessions.length !== 1 ? 's' : ''}` : '';
 
   if (sessions.length === 0) {
-    if (emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.classList.add('flex'); }
+    setCashHistoryState('empty');
     return;
   }
 
-  if (headerEl) headerEl.classList.remove('hidden');
+  setCashHistoryState('data');
 
   const tz = { timeZone: 'America/Argentina/Buenos_Aires' };
 
