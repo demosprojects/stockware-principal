@@ -200,7 +200,7 @@
 
         <div class="relative flex-1 max-w-md">
           <svg class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input type="text" id="searchInput" placeholder="Buscar producto..." class="w-full pl-9 pr-4 py-2 bg-slate-800/80 border border-slate-700/50 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500 transition-all text-sm font-medium text-white placeholder-slate-500 shadow-inner">
+          <input type="text" id="searchInput" placeholder="Buscar por nombre o SKU..." class="w-full pl-9 pr-4 py-2 bg-slate-800/80 border border-slate-700/50 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500 transition-all text-sm font-medium text-white placeholder-slate-500 shadow-inner">
         </div>
 
         <div class="text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-md border border-slate-700/50 flex-shrink-0 ml-auto" id="currentDateDisplay"></div>
@@ -231,28 +231,28 @@
               <span class="text-xs font-medium">Ticket vacío</span>
             </div>
           </div>
-          <div class="p-5 bg-slate-800/30 border-t border-slate-800">
-            <div class="mb-3">
-              <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Medio de Pago</label>
-              <select id="paymentMethod" class="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer appearance-none">
-                <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                <option value="Otros">Otros</option>
-              </select>
-            </div>
-            <div class="flex justify-between items-center mb-1.5">
-              <span class="text-xs text-slate-400 font-medium">Subtotal</span>
-              <span class="text-sm text-white font-medium" id="subtotalDisplay">$0</span>
-            </div>
-            <div class="flex justify-between items-center mb-4">
+          <div class="bg-slate-800/30 border-t border-slate-800">
+            <!-- Total destacado -->
+            <div class="flex justify-between items-center px-5 py-4 border-b border-slate-800/60">
               <span class="text-sm font-bold text-white">Total</span>
-              <span class="text-base font-black text-indigo-400" id="totalDisplay">$0</span>
+              <span class="text-xl font-black text-indigo-400" id="totalDisplay">$0</span>
             </div>
-            <button id="btnCheckout" onclick="checkout()" disabled class="w-full bg-slate-700 text-slate-500 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed" style="pointer-events:none">
-              Finalizar compra
-            </button>
+            <!-- Medio de pago + botón -->
+            <div class="p-4 space-y-3">
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Medio de Pago</label>
+                <select id="paymentMethod" class="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer appearance-none">
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                  <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                  <option value="Otros">Otros</option>
+                </select>
+              </div>
+              <button id="btnCheckout" onclick="checkout()" disabled class="w-full bg-slate-700 text-slate-500 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed" style="pointer-events:none">
+                Finalizar compra
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -625,13 +625,18 @@
 
               <!-- Logo -->
               <div class="mb-4">
-                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Logo (URL de imagen)</label>
-                <div class="flex gap-2">
-                  <input type="url" id="confLogo" placeholder="https://..." class="flex-1 p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Logo del ticket</label>
+                <div class="flex gap-2 items-center">
+                  <label class="flex-1 flex items-center gap-2 px-3 py-2.5 bg-slate-800 border border-slate-700 hover:border-indigo-500/50 text-slate-400 hover:text-white text-sm rounded-lg cursor-pointer transition group">
+                    <svg class="w-4 h-4 flex-shrink-0 group-hover:text-indigo-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    <span id="confLogoLabel" class="truncate">Seleccionar logo...</span>
+                    <input type="file" id="confLogoFile" accept="image/*" class="hidden" onchange="handleLogoSelect(this)">
+                  </label>
                   <div id="confLogoPreview" class="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
                     <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                   </div>
                 </div>
+                <input type="hidden" id="confLogo">
               </div>
 
               <!-- Redes y contacto -->
@@ -705,24 +710,33 @@
         <button onclick="closeProductModal()" class="text-slate-500 hover:text-white text-xl leading-none transition">&times;</button>
       </div>
       <div class="p-4 md:p-5">
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre del producto</label>
+          <input type="text" id="pName" placeholder="Ej: Remera, Zapatilla, Cartera..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+        </div>
         <div class="grid grid-cols-2 gap-3 md:gap-4 mb-4">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre del producto</label>
-            <input type="text" id="pName" placeholder="Ej: Remera, Zapatilla, Cartera..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Precio ($)</label>
+            <input type="number" id="pPrice" placeholder="0.00" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Precio($)</label>
-            <input type="number" id="pPrice" placeholder="0.00" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">SKU / Código <span style="color:#475569">(opcional)</span></label>
+            <input type="text" id="pSku" placeholder="Ej: REM-001..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
           </div>
         </div>
         <div class="mb-5">
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">URL de imagen <span class="text-slate-600">(opcional)</span></label>
-          <div class="flex gap-2">
-            <input type="url" id="pImageUrl" placeholder="https://..." class="flex-1 p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Imagen del producto <span class="text-slate-600">(opcional)</span></label>
+          <div class="flex gap-2 items-center">
+            <label class="flex-1 flex items-center gap-2 px-3 py-2.5 bg-slate-800 border border-slate-700 hover:border-indigo-500/50 text-slate-400 hover:text-white text-sm rounded-lg cursor-pointer transition group">
+              <svg class="w-4 h-4 flex-shrink-0 group-hover:text-indigo-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              <span id="pImageLabel" class="truncate">Seleccionar imagen...</span>
+              <input type="file" id="pImageFile" accept="image/*" class="hidden" onchange="handleProductImageSelect(this, 'pImageLabel', 'pImagePreview')">
+            </label>
             <div id="pImagePreview" class="w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
               <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             </div>
           </div>
+          <input type="hidden" id="pImageUrl">
         </div>
         <!-- Stock simple (se muestra solo si no hay variantes) -->
         <div id="pStockWrapper" class="mb-4">
@@ -747,58 +761,92 @@
     </div>
   </div>
 
-  <div id="successModal" class="fixed inset-0 bg-[#0B1120]/90 backdrop-blur-sm hidden flex items-end md:items-center justify-center z-50 p-0 md:p-4">
-    <div class="bg-slate-900 border border-slate-700 rounded-t-3xl md:rounded-3xl p-5 md:p-6 w-full md:max-w-md shadow-2xl flex flex-col items-center max-h-[95vh] overflow-y-auto fade-in">
-      <h3 class="text-base font-bold text-emerald-400 mb-4 md:mb-5 flex items-center gap-2">
-        <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-        ¡Venta Exitosa!
-      </h3>
-      <div id="ticketCaptureArea" class="bg-white text-black p-5 w-full max-w-[280px] md:max-w-[300px] font-mono text-[11px] leading-tight shadow-lg mb-5 md:mb-6 rounded-sm relative selection:bg-gray-200">
-        <div class="text-center mb-4 border-b border-dashed border-gray-400 pb-4">
-          <div id="tkLogoWrapper" class="hidden mb-2 flex justify-center">
-            <img id="tkLogo" src="" alt="Logo" class="max-h-12 max-w-[120px] object-contain mx-auto">
-          </div>
-          <h2 id="tkStoreName" class="font-bold text-lg uppercase tracking-tight leading-none mb-1.5">NOMBRE DEL LOCAL</h2>
-          <p id="tkStoreContact" class="text-[10px] text-gray-700 leading-tight font-medium"></p>
-          <p id="tkStoreAddress" class="text-[10px] text-gray-600 leading-tight mt-0.5"></p>
-          <p class="text-[9px] text-gray-400 uppercase tracking-wide mt-2 font-semibold">Comprobante no válido como factura</p>
-        </div>
-        <div class="border-b border-dashed border-gray-400 pb-2 mb-2 font-medium">
-          <div class="flex justify-between mb-0.5"><span class="font-bold">FECHA:</span> <span id="tkDate"></span></div>
-          <div class="flex justify-between mb-0.5"><span class="font-bold">TICKET:</span> <span id="tkId"></span></div>
-          <div class="flex justify-between"><span class="font-bold">PAGO:</span> <span id="tkPayment" class="uppercase"></span></div>
-        </div>
-        <div class="border-b border-dashed border-gray-400 pb-2 mb-2">
-          <div class="flex justify-between font-bold mb-1 uppercase text-[10px]">
-            <span>Cant / Desc</span><span>Monto</span>
-          </div>
-          <div id="tkItems" class="space-y-1 font-medium"></div>
-        </div>
-        <div class="flex justify-between font-black text-base mb-4 pt-1">
-          <span>TOTAL</span><span id="tkTotal"></span>
-        </div>
-        <div class="text-center text-[10px] text-gray-500 mt-2 border-t border-dashed border-gray-300 pt-3">
-          <p class="mb-1">¡Gracias por tu compra!</p>
-          <p class="text-[9px] text-gray-400">Powered by <span class="font-bold text-gray-500">Stockware.com.ar</span></p>
-        </div>
+  <div id="successModal" class="fixed inset-0 bg-[#0B1120]/85 backdrop-blur-md hidden flex items-end md:items-center justify-center z-[100] p-4 sm:p-0 transition-all duration-300">
+  <div class="bg-slate-900 border border-slate-700/60 rounded-3xl p-6 md:p-8 w-full md:max-w-md shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] flex flex-col items-center max-h-[95vh] overflow-y-auto animate-[fadeIn_0.3s_ease-out]">
+
+    <!-- Encabezado de Éxito -->
+    <div class="flex flex-col items-center mb-6">
+      <div class="w-14 h-14 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mb-3 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+        <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
       </div>
-      <div class="w-full space-y-2.5 md:space-y-3 mt-auto">
-        <div class="grid grid-cols-2 gap-2.5 md:gap-3">
-          <button onclick="printTicket()" class="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white py-2.5 rounded-xl font-medium border border-slate-600 transition-all text-sm active:scale-95">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            Imprimir
-          </button>
-          <button id="btnWaImage" onclick="downloadTicketImage()" class="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-medium shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all text-sm active:scale-95">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            Descargar
-          </button>
+      <h3 class="text-xl font-bold text-white tracking-tight">¡Compra exitosa!</h3>
+      <p class="text-xs text-slate-400 mt-1">Comprobante de la operación.</p>
+    </div>
+
+    <!-- Contenedor del Ticket -->
+    <div id="ticketCaptureArea" class="bg-white text-slate-800 p-6 w-full max-w-[300px] font-mono text-[11px] leading-tight shadow-2xl mb-8 rounded-md relative selection:bg-indigo-100">
+      <!-- Detalle superior de color -->
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500"></div>
+
+      <!-- Cabecera del comercio -->
+      <div class="text-center mb-5 border-b border-dashed border-slate-300 pb-4">
+        <div id="tkLogoWrapper" class="hidden mb-3 flex justify-center">
+          <img id="tkLogo" src="" alt="Logo" class="max-h-12 max-w-[120px] object-contain mx-auto">
         </div>
-        <button id="btnSuccessClose" onclick="closeSuccessModal()" class="w-full bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold border border-indigo-500 transition-all active:scale-95">
-          Cerrar
-        </button>
+        <h2 id="tkStoreName" class="font-black text-lg uppercase tracking-tight leading-none mb-1.5 text-slate-900">NOMBRE DEL LOCAL</h2>
+        <p id="tkStoreContact" class="text-[10px] text-slate-600 leading-tight font-medium"></p>
+        <p id="tkStoreAddress" class="text-[10px] text-slate-500 leading-tight mt-0.5"></p>
+        <div class="inline-block bg-slate-100 text-slate-500 text-[9px] uppercase tracking-wider px-2 py-1 rounded mt-3 font-semibold">No válido como factura</div>
+      </div>
+
+      <!-- Datos de la transacción -->
+      <div class="border-b border-dashed border-slate-300 pb-3 mb-3 font-medium space-y-1.5 text-slate-700">
+        <div class="flex justify-between"><span class="font-bold text-slate-900">FECHA:</span> <span id="tkDate"></span></div>
+        <div class="flex justify-between"><span class="font-bold text-slate-900">TICKET:</span> <span id="tkId"></span></div>
+        <div class="flex justify-between"><span class="font-bold text-slate-900">PAGO:</span> <span id="tkPayment" class="uppercase"></span></div>
+      </div>
+
+      <!-- Ítems -->
+      <div class="border-b border-dashed border-slate-300 pb-3 mb-3">
+        <div class="flex justify-between font-bold mb-2 uppercase text-[10px] text-slate-400 tracking-wider">
+          <span>Cant / Desc</span><span>Monto</span>
+        </div>
+        <div id="tkItems" class="space-y-1.5 font-medium text-slate-700"></div>
+      </div>
+
+      <!-- Total -->
+      <div class="flex justify-between font-black text-lg mb-5 pt-1 text-slate-900">
+        <span>TOTAL</span><span id="tkTotal"></span>
+      </div>
+
+      <!-- Pie de página -->
+      <div class="text-center mt-2 pt-4 relative">
+        <p class="text-xs font-bold text-slate-800 mb-0.5">¡Gracias por tu compra!</p>
+        <p class="text-[9px] text-slate-400">Powered by <span class="font-bold text-slate-500">Stockware.com.ar</span></p>
       </div>
     </div>
+
+    <!-- Botonera -->
+    <div class="w-full space-y-3 mt-auto">
+  <div class="grid grid-cols-3 gap-2 sm:gap-3">
+    
+    <!-- Botón Imprimir -->
+    <button onclick="printTicket()" class="flex flex-col items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white py-2.5 rounded-xl font-medium border border-slate-600/50 shadow-lg transition-all text-xs sm:text-sm active:scale-95 group">
+      <svg class="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+      Imprimir
+    </button>
+
+    <!-- Botón Copiar -->
+    <button id="btnCopyImage" onclick="copyTicketImage()" class="flex flex-col items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl font-medium shadow-[0_0_15px_rgba(37,99,235,0.2)] transition-all text-xs sm:text-sm active:scale-95">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+      Copiar
+    </button>
+
+    <!-- Botón Descargar -->
+    <button id="btnWaImage" onclick="downloadTicketImage()" class="flex flex-col items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2.5 rounded-xl font-bold shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all text-xs sm:text-sm active:scale-95">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Descargar
+    </button>
+
   </div>
+  
+  <button id="btnSuccessClose" onclick="closeSuccessModal()" class="w-full bg-transparent hover:bg-slate-800/50 text-slate-400 hover:text-white py-3 rounded-xl font-medium border border-transparent transition-all active:scale-95 text-sm">
+    Cerrar
+  </button>
+</div>
+
+  </div>
+</div>
 
   <div id="editProductModal" class="fixed inset-0 bg-[#0B1120]/80 backdrop-blur-sm hidden flex items-end md:items-center justify-center z-50">
     <div class="bg-slate-900 border border-slate-700 rounded-t-2xl md:rounded-2xl w-full md:max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl fade-in">
@@ -808,24 +856,33 @@
       </div>
       <div class="p-4 md:p-5">
         <input type="hidden" id="editPId">
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre del producto</label>
+          <input type="text" id="editPName" placeholder="Ej: Remera, Zapatilla, Cartera..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+        </div>
         <div class="grid grid-cols-2 gap-3 md:gap-4 mb-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Nombre del producto</label>
-            <input type="text" id="editPName" placeholder="Ej: Remera, Zapatilla, Cartera..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
-          </div>
           <div>
             <label class="block text-xs font-medium text-slate-400 mb-1.5">Precio ($)</label>
             <input type="number" id="editPPrice" placeholder="0.00" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
           </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">SKU / Código <span style="color:#475569">(opcional)</span></label>
+            <input type="text" id="editPSku" placeholder="Ej: REM-001..." class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+          </div>
         </div>
         <div class="mb-5">
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">URL de imagen <span class="text-slate-600">(opcional)</span></label>
-          <div class="flex gap-2">
-            <input type="url" id="editPImageUrl" placeholder="https://..." class="flex-1 p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Imagen del producto <span class="text-slate-600">(opcional)</span></label>
+          <div class="flex gap-2 items-center">
+            <label class="flex-1 flex items-center gap-2 px-3 py-2.5 bg-slate-800 border border-slate-700 hover:border-indigo-500/50 text-slate-400 hover:text-white text-sm rounded-lg cursor-pointer transition group">
+              <svg class="w-4 h-4 flex-shrink-0 group-hover:text-indigo-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              <span id="editPImageLabel" class="truncate">Seleccionar imagen...</span>
+              <input type="file" id="editPImageFile" accept="image/*" class="hidden" onchange="handleProductImageSelect(this, 'editPImageLabel', 'editPImagePreview')">
+            </label>
             <div id="editPImagePreview" class="w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
               <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             </div>
           </div>
+          <input type="hidden" id="editPImageUrl">
         </div>
         <!-- Stock simple (se muestra solo si no hay variantes) -->
         <div id="editPStockWrapper" class="mb-4 hidden">
@@ -1016,6 +1073,10 @@
   <script type="module" src="./pos.js"></script>
 
   <script>
+    // Fallback: si el módulo aún no cargó, encola la llamada
+    window.openProductModal = window.openProductModal || function() {
+      document.addEventListener('pos-module-ready', () => window.openProductModal(), { once: true });
+    };
     // ===== MOBILE UI LOGIC =====
 
     function openSidebar() {
