@@ -743,6 +743,26 @@
                 <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Dirección <span class="text-slate-600 normal-case">(opcional)</span></label>
                 <input type="text" id="confAddress" placeholder="Ej: Av. Corrientes 1234, CABA" class="w-full p-2.5 bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none transition placeholder-slate-600">
               </div>
+
+              <!-- Tamaño de papel -->
+              <div class="mt-3">
+                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Tamaño de papel de impresión</label>
+                <div class="grid grid-cols-3 gap-2">
+                  <button type="button" onclick="setPaperSize('58mm')" id="paperBtn58" class="paper-size-btn py-2 px-3 rounded-lg border text-xs font-semibold transition-all bg-slate-800 border-slate-700 text-slate-400 hover:border-indigo-500/50 hover:text-white">
+                    58mm
+                    <span class="block text-[9px] font-normal text-slate-500 mt-0.5">Térmica chica</span>
+                  </button>
+                  <button type="button" onclick="setPaperSize('80mm')" id="paperBtn80" class="paper-size-btn py-2 px-3 rounded-lg border text-xs font-semibold transition-all bg-slate-800 border-slate-700 text-slate-400 hover:border-indigo-500/50 hover:text-white">
+                    80mm
+                    <span class="block text-[9px] font-normal text-slate-500 mt-0.5">Térmica estándar</span>
+                  </button>
+                  <button type="button" onclick="setPaperSize('A4')" id="paperBtnA4" class="paper-size-btn py-2 px-3 rounded-lg border text-xs font-semibold transition-all bg-slate-800 border-slate-700 text-slate-400 hover:border-indigo-500/50 hover:text-white">
+                    A4
+                    <span class="block text-[9px] font-normal text-slate-500 mt-0.5">Hoja común</span>
+                  </button>
+                </div>
+                <p class="text-[9px] text-slate-600 mt-1.5">Se guarda en este dispositivo. Configuralo según la impresora del local.</p>
+              </div>
             </div>
 
             <div class="pt-2 flex justify-end border-t border-slate-800">
