@@ -714,8 +714,8 @@ window.printTicket = () => {
             <head>
                 <title>Imprimir Ticket</title>
                 <style>
-                    @page { margin: 0; }
-                    body { font-family: 'Courier New', Courier, monospace; padding: 15px; margin: 0; color: #000; width: 100%; max-width: 80mm; font-size: 11px; line-height: 1.3; }
+                    @page { size: 80mm auto; margin: 0; }
+                    body { font-family: 'Courier New', Courier, monospace; padding: 8px 10px; margin: 0 auto; color: #000; width: 80mm; max-width: 80mm; box-sizing: border-box; font-size: 11px; line-height: 1.3; }
                     .text-center { text-align: center; }
                     .font-bold { font-weight: bold; }
                     .font-black { font-weight: 900; }
