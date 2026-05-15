@@ -258,7 +258,7 @@ window.switchView = (view) => {
   }
 
   if (view === "sales") loadSales();
-  if (view === "config") loadConfig();
+  if (view === "config") { loadConfig(); setTimeout(loadPaperSizeUI, 50); }
   if (view === "cash") initCashView();
 };
 
@@ -706,16 +706,42 @@ function renderTicketPreview(sale, cartItems, method) {
     document.getElementById("tkTotal").innerText = "$" + Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 });
 }
 
+window.setPaperSize = (size) => {
+    localStorage.setItem("pos_paper_size", size);
+    loadPaperSizeUI();
+};
+
+window.loadPaperSizeUI = () => {
+    const size = localStorage.getItem("pos_paper_size") || "80mm";
+    const map = { "58mm": "paperBtn58", "80mm": "paperBtn80", "A4": "paperBtnA4" };
+    Object.entries(map).forEach(([s, id]) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        if (s === size) {
+            btn.classList.remove("border-slate-700", "text-slate-400");
+            btn.classList.add("border-indigo-500", "text-white", "bg-indigo-500/10");
+        } else {
+            btn.classList.remove("border-indigo-500", "text-white", "bg-indigo-500/10");
+            btn.classList.add("border-slate-700", "text-slate-400");
+        }
+    });
+};
+
 window.printTicket = () => {
     const ticketHtml = document.getElementById("ticketCaptureArea").innerHTML;
+    const paperSize = localStorage.getItem("pos_paper_size") || "80mm";
+    const paperW = paperSize === "A4" ? "210mm" : paperSize;
+    const paperPad = paperSize === "A4" ? "20mm 25mm" : "8px 10px";
+    const paperFont = paperSize === "58mm" ? "10px" : "11px";
     const printWindow = window.open('', '', 'width=400,height=600');
     printWindow.document.write(`
         <html>
             <head>
                 <title>Imprimir Ticket</title>
+                <script src="https://cdn.tailwindcss.com"></script>
                 <style>
-                    @page { size: 80mm auto; margin: 0; }
-                    body { font-family: 'Courier New', Courier, monospace; padding: 8px 10px; margin: 0 auto; color: #000; width: 80mm; max-width: 80mm; box-sizing: border-box; font-size: 11px; line-height: 1.3; }
+                    @page { size: ${paperW} auto; margin: 0; }
+                    body { font-family: 'Courier New', Courier, monospace; padding: ${paperPad}; margin: 0 auto; color: #000; width: ${paperW}; max-width: ${paperW}; box-sizing: border-box; font-size: ${paperFont}; line-height: 1.3; }
                     .text-center { text-align: center; }
                     .font-bold { font-weight: bold; }
                     .font-black { font-weight: 900; }
@@ -756,10 +782,20 @@ window.printTicket = () => {
     `);
     printWindow.document.close();
     printWindow.focus();
+    // Esperar a que Tailwind cargue y renderice antes de imprimir
+    printWindow.onload = () => {
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 600);
+    };
+    // Fallback por si onload ya disparó
     setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 250);
+        if (!printWindow.closed) {
+            printWindow.print();
+            printWindow.close();
+        }
+    }, 2000);
 };
 
 window.reprintTicket = (saleId) => {
