@@ -1,4 +1,4 @@
-const CACHE = 'stockware-v1';
+const CACHE = 'stockware-v2';
 const ASSETS = [
   '/',
   'index.html',
