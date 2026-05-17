@@ -43,9 +43,99 @@ let isSubscriptionActive = true;
 let allSales = [];
 let salesPeriod = 'today';
 let currentCashSession = null; // Sesión de caja activa
+let surchargePercent = 0; // Recargo activo (comisión posnet, no queda en caja)
 
 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
 document.getElementById('currentDateDisplay').innerText = new Intl.DateTimeFormat('es-AR', options).format(new Date());
+
+// ===== RECARGO / COMISIÓN POSNET =====
+// surchargePercent = porcentaje que se le cobra al cliente de más
+// Ese monto NO queda en la caja propia, es la comisión del posnet/QR
+
+window.toggleSurchargePanel = () => {
+  const panel = document.getElementById('surchargePanel');
+  const chevron = document.getElementById('surchargeChevron');
+  const isOpen = !panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', isOpen);
+  if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+};
+
+window.setSurchargeQuick = (pct) => {
+  const input = document.getElementById('surchargePercent');
+  if (input) { input.value = pct; updateSurcharge(); }
+};
+
+window.setSurchargeQuickMobile = (pct) => {
+  const input = document.getElementById('surchargePercentMobile');
+  if (input) { input.value = pct; updateSurchargeMobile(); }
+};
+
+window.clearSurcharge = () => {
+  const input = document.getElementById('surchargePercent');
+  if (input) input.value = '';
+  surchargePercent = 0;
+  updateSurchargeUI();
+  renderCart();
+};
+
+window.clearSurchargeMobile = () => {
+  const input = document.getElementById('surchargePercentMobile');
+  if (input) input.value = '';
+  surchargePercent = 0;
+  updateSurchargeUI();
+  renderCart();
+};
+
+window.updateSurcharge = () => {
+  const val = parseFloat(document.getElementById('surchargePercent')?.value) || 0;
+  surchargePercent = Math.max(0, Math.min(val, 100));
+  // Sincronizar con mobile
+  const mobileInput = document.getElementById('surchargePercentMobile');
+  if (mobileInput) mobileInput.value = surchargePercent || '';
+  updateSurchargeUI();
+  renderCart();
+};
+
+window.updateSurchargeMobile = () => {
+  const val = parseFloat(document.getElementById('surchargePercentMobile')?.value) || 0;
+  surchargePercent = Math.max(0, Math.min(val, 100));
+  // Sincronizar con desktop
+  const desktopInput = document.getElementById('surchargePercent');
+  if (desktopInput) desktopInput.value = surchargePercent || '';
+  updateSurchargeUI();
+  renderCart();
+};
+
+function updateSurchargeUI() {
+  const baseTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const surchargeAmt = Math.round(baseTotal * surchargePercent / 100);
+  const finalTotal = baseTotal + surchargeAmt;
+
+  // Badge del header
+  const badge = document.getElementById('surchargePreviewBadge');
+  if (badge) {
+    if (surchargePercent > 0) {
+      badge.textContent = `+${surchargePercent}%`;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  // Desglose en desktop
+  const breakdown = document.getElementById('surchargeBreakdown');
+  if (breakdown) {
+    if (surchargePercent > 0 && baseTotal > 0) {
+      breakdown.classList.remove('hidden');
+      document.getElementById('surchargeBase').textContent = '$' + baseTotal.toLocaleString('es-AR');
+      document.getElementById('surchargeAmount').textContent = '+$' + surchargeAmt.toLocaleString('es-AR');
+      document.getElementById('surchargeFinalTotal').textContent = '$' + finalTotal.toLocaleString('es-AR');
+    } else {
+      breakdown.classList.add('hidden');
+    }
+  }
+}
+// ===== FIN RECARGO =====
 
 async function initPos() {
   const { data: userData } = await supabase.auth.getUser();
@@ -76,6 +166,9 @@ async function initPos() {
   document.getElementById("storeNameDisplay").innerText = store.name;
   loadProducts();
   loadPaymentMethods();
+
+  // Verificar si hay caja abierta hoy; si no, mostrar aviso
+  checkCashSessionOnStartup();
 }
 
 function showSuspensionOverlay() {
@@ -102,6 +195,46 @@ function hideSuspensionOverlay() {
     mainContent.style.opacity = "";
   }
 }
+
+// Verifica si hay caja abierta al iniciar; si no, muestra un banner sutil
+async function checkCashSessionOnStartup() {
+  const { data, error } = await supabase
+    .from('cash_sessions')
+    .select('id, status, opened_at')
+    .eq('store_id', storeId)
+    .eq('status', 'abierta')
+    .order('opened_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) { console.error('checkCashSessionOnStartup error:', error); return; }
+
+  if (!data) {
+    showCashBanner();
+  } else {
+    currentCashSession = data;
+    hideCashBanner();
+  }
+}
+
+function showCashBanner() {
+  const banner = document.getElementById('cashClosedBanner');
+  if (banner) banner.classList.remove('hidden');
+}
+
+function hideCashBanner() {
+  const banner = document.getElementById('cashClosedBanner');
+  if (banner) banner.classList.add('hidden');
+}
+
+window.goToCashFromModal = () => {
+  hideCashBanner();
+  window.switchView('cash');
+};
+
+window.dismissCashRequired = () => {
+  hideCashBanner();
+};
 
 window.copyText = (text) => {
   navigator.clipboard.writeText(text);
@@ -243,10 +376,11 @@ window.switchView = (view) => {
   document.getElementById("salesView").classList.add("hidden");
   document.getElementById("cashView").classList.add("hidden");
   document.getElementById("configView").classList.add("hidden");
+  document.getElementById("supportView").classList.add("hidden");
   
   document.getElementById(`${view}View`).classList.remove("hidden");
 
-  const navIds = ['nav-pos', 'nav-products', 'nav-sales', 'nav-cash', 'nav-config'];
+  const navIds = ['nav-pos', 'nav-products', 'nav-sales', 'nav-cash', 'nav-config', 'nav-support'];
   navIds.forEach(id => {
     const el = document.getElementById(id);
     if(el) el.className = "w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm font-medium border border-transparent transition-all";
@@ -260,6 +394,10 @@ window.switchView = (view) => {
   if (view === "sales") loadSales();
   if (view === "config") { loadConfig(); setTimeout(loadPaperSizeUI, 50); }
   if (view === "cash") initCashView();
+};
+
+window.openWhatsApp = (message) => {
+  window.open(`https://wa.me/5493644539325?text=${message}`, '_blank');
 };
 
 async function loadProducts() {
@@ -478,7 +616,6 @@ function renderCart() {
   const mobileCartCount = document.getElementById("mobileCartCount");
   const cartBadge = document.getElementById("cartBadge");
 
-  let total = 0;
   const emptyHTML = `
     <div class="flex flex-col items-center justify-center py-6 text-slate-500 space-y-2 h-full">
       <svg class="w-7 h-7 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
@@ -503,7 +640,6 @@ function renderCart() {
   let totalItems = 0;
 
   cart.forEach((item, index) => {
-    total += item.price * item.qty;
     totalItems += item.qty;
     const variantText = item.size || item.color ? `<p class="text-[10px] text-slate-400 mt-0.5">${item.size} • ${item.color}</p>` : '';
     const itemHTML = `
@@ -535,8 +671,14 @@ function renderCart() {
     }
   });
 
+  const baseTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const surchargeAmt = surchargePercent > 0 ? Math.round(baseTotal * surchargePercent / 100) : 0;
+  const total = baseTotal + surchargeAmt;
+
   const formatted = `$${total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}`;
-  if (subtotalSpan) subtotalSpan.innerText = formatted;
+  const baseFormatted = `$${baseTotal.toLocaleString('es-AR', { minimumFractionDigits: 0 })}`;
+
+  if (subtotalSpan) subtotalSpan.innerText = baseFormatted;
   if (totalSpan) totalSpan.innerText = formatted;
   if (mobileTotalSpan) mobileTotalSpan.innerText = formatted;
   if (mobileCartCount) mobileCartCount.innerText = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
@@ -546,6 +688,7 @@ function renderCart() {
     cartBadge.classList.add('pulse-once');
     setTimeout(() => cartBadge.classList.remove('pulse-once'), 400);
   }
+  updateSurchargeUI();
   updateCheckoutBtn();
 }
 
@@ -591,14 +734,24 @@ window.checkout = async () => {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> Procesando...`;
 
-  const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const baseTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const surchargeAmt = surchargePercent > 0 ? Math.round(baseTotal * surchargePercent / 100) : 0;
+  const totalWithSurcharge = baseTotal + surchargeAmt;
   const selectedPaymentMethod = document.getElementById("paymentMethod").value;
 
+  // En la BD guardamos el total SIN recargo (lo que realmente te queda)
+  // El recargo es comisión del posnet, no es ingreso tuyo
   const salePayload = {
     store_id: storeId,
-    total: total,
+    total: baseTotal,
     payment_method: selectedPaymentMethod,
   };
+
+  // Guardar el recargo si existe (para registro/auditoría)
+  if (surchargeAmt > 0) {
+    salePayload.surcharge_percent = surchargePercent;
+    salePayload.surcharge_amount = surchargeAmt;
+  }
 
   // Si hay una sesión de caja activa, vincular la venta
   if (currentCashSession?.id) {
@@ -644,19 +797,26 @@ window.checkout = async () => {
     }
   }
   
-  renderTicketPreview(saleData, cart, selectedPaymentMethod);
+  renderTicketPreview(saleData, cart, selectedPaymentMethod, totalWithSurcharge, surchargeAmt);
   document.getElementById("successModal").classList.remove("hidden");
   if (typeof closeMobileCart === 'function') closeMobileCart();
   
   btn.disabled = false;
   btn.innerHTML = "Finalizar compra";
 
+  // Limpiar recargo después de la venta
+  surchargePercent = 0;
+  const dInput = document.getElementById('surchargePercent');
+  const mInput = document.getElementById('surchargePercentMobile');
+  if (dInput) dInput.value = '';
+  if (mInput) mInput.value = '';
+
   cart = [];
   renderCart();
   loadProducts(); 
 };
 
-function renderTicketPreview(sale, cartItems, method) {
+function renderTicketPreview(sale, cartItems, method, totalWithSurcharge, surchargeAmt) {
     const logoWrapper = document.getElementById("tkLogoWrapper");
     const logoImg = document.getElementById("tkLogo");
     if (currentStore.logo_url) {
@@ -687,23 +847,28 @@ function renderTicketPreview(sale, cartItems, method) {
     const itemsContainer = document.getElementById("tkItems");
     itemsContainer.innerHTML = "";
     
+    // Factor de recargo: distribuye el recargo proporcionalmente en cada ítem
+    const surchargeFactor = (totalWithSurcharge && surchargeAmt > 0)
+        ? totalWithSurcharge / (totalWithSurcharge - surchargeAmt)
+        : 1;
+
     cartItems.forEach(item => {
         const variantLabel = (item.size || item.color) ? ` (${item.size||''} ${item.color||''})`.trim() : '';
-        const itemTotal = item.price * item.qty;
+        const itemTotal = Math.round(item.price * item.qty * surchargeFactor);
         itemsContainer.innerHTML += `
-            <div class="flex justify-between items-start">
-                <div class="flex-1 leading-tight pr-2">
-                    <div><span class="font-bold">${item.qty}x</span> ${item.name}${variantLabel}</div>
-                    ${item.sku ? `<div style="font-size:9px;color:#9ca3af;font-family:monospace;margin-top:1px;">${item.sku}</div>` : ''}
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
+                <div style="flex:1;padding-right:8px;line-height:1.35;">
+                    <div><span style="font-weight:700;">${item.qty}x</span> ${item.name}${variantLabel}</div>
+                    ${item.sku ? `<div style="font-size:10px;color:#888;font-family:monospace;margin-top:2px;letter-spacing:0.03em;">${item.sku}</div>` : ''}
                 </div>
-                <div class="font-bold">
+                <div style="font-weight:700;white-space:nowrap;">
                     $${itemTotal.toLocaleString('es-AR')}
                 </div>
             </div>
         `;
     });
 
-    document.getElementById("tkTotal").innerText = "$" + Number(sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 });
+    document.getElementById("tkTotal").innerText = "$" + Number(totalWithSurcharge || sale.total).toLocaleString('es-AR', { minimumFractionDigits: 0 });
 }
 
 window.setPaperSize = (size) => {
@@ -738,43 +903,79 @@ window.printTicket = () => {
         <html>
             <head>
                 <title>Imprimir Ticket</title>
-                <script src="https://cdn.tailwindcss.com"></script>
                 <style>
                     @page { size: ${paperW} auto; margin: 0; }
-                    body { font-family: 'Courier New', Courier, monospace; padding: ${paperPad}; margin: 0 auto; color: #000; width: ${paperW}; max-width: ${paperW}; box-sizing: border-box; font-size: ${paperFont}; line-height: 1.3; }
-                    .text-center { text-align: center; }
-                    .font-bold { font-weight: bold; }
-                    .font-black { font-weight: 900; }
-                    .text-lg { font-size: 16px; }
-                    .text-sm { font-size: 14px; }
-                    .text-\\[10px\\] { font-size: 10px; }
-                    .mb-1 { margin-bottom: 4px; }
-                    .mb-2 { margin-bottom: 8px; }
-                    .mb-4 { margin-bottom: 16px; }
-                    .mt-1 { margin-top: 4px; }
-                    .pb-2 { padding-bottom: 8px; }
-                    .space-y-1 > * + * { margin-top: 4px; }
-                    .border-b { border-bottom: 1px dashed #000; }
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body {
+                        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                        font-size: ${paperFont};
+                        line-height: 1.5;
+                        color: #111;
+                        background: #fff;
+                        width: ${paperW};
+                        max-width: ${paperW};
+                    }
+
+                    /* === Ticket container === */
+                    #ticketCaptureArea {
+                        width: 100% !important;
+                        filter: none !important;
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                    }
+
+                    /* Bordes dentados — override inline gradients for print */
+                    #ticketCaptureArea > div:first-child,
+                    #ticketCaptureArea > div:last-child {
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+
+                    /* Cuerpo */
+                    #ticketCaptureArea > div:nth-child(2) {
+                        padding: 0 ${paperSize === '58mm' ? '14px' : '18px'} !important;
+                    }
+
+                    /* Logo */
+                    #tkLogoWrapper { display: flex !important; justify-content: center; }
+                    #tkLogoWrapper.hidden { display: none !important; }
+                    #tkLogo {
+                        max-height: 50px !important;
+                        max-width: 120px !important;
+                        object-fit: contain;
+                        display: block;
+                        margin: 0 auto;
+                    }
+
+                    /* Nombre */
+                    #tkStoreName {
+                        font-size: ${paperSize === '58mm' ? '13px' : '15px'} !important;
+                        font-weight: 800 !important;
+                        letter-spacing: 0.12em;
+                        color: #111 !important;
+                    }
+                    #tkStoreContact { font-size: 10px !important; color: #555 !important; }
+                    #tkStoreAddress { font-size: 9.5px !important; color: #888 !important; }
+
+                    /* Datos */
+                    #tkDate, #tkId, #tkPayment {
+                        font-size: 11px !important;
+                        color: #111 !important;
+                    }
+
+                    /* Ítems */
+                    #tkItems div { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+
+                    /* Total */
+                    #tkTotal {
+                        font-size: ${paperSize === '58mm' ? '15px' : '17px'} !important;
+                        font-weight: 800 !important;
+                        color: #111 !important;
+                    }
+
+                    /* Utilidades */
+                    .hidden { display: none !important; }
                     .flex { display: flex; }
-                    .justify-between { justify-content: space-between; }
-                    .items-start { align-items: flex-start; }
-                    .flex-1 { flex: 1; }
-                    .uppercase { text-transform: uppercase; }
-                    .tracking-tight { letter-spacing: -0.025em; }
-                    .leading-none { line-height: 1; }
-                    .leading-tight { line-height: 1.25; }
-                    .text-gray-700, .text-gray-600 { color: #333; }
-                    img { display: block; max-height: 48px; max-width: 120px; object-fit: contain; margin: 0 auto 4px; }
-                    .hidden { display: none; }
-                    #tkLogoWrapper { display: flex; justify-content: center; margin-bottom: 6px; }
-                    #tkLogoWrapper.hidden { display: none; }
-                    .text-\\[9px\\] { font-size: 9px; }
-                    .tracking-wide { letter-spacing: 0.05em; }
-                    .border-t { border-top: 1px dashed #ccc; }
-                    .pt-3 { padding-top: 12px; }
-                    .mb-1 { margin-bottom: 4px; }
-                    .text-gray-400 { color: #9ca3af; }
-                    .text-gray-500 { color: #6b7280; }
                 </style>
             </head>
             <body>${ticketHtml}</body>
@@ -811,7 +1012,10 @@ window.reprintTicket = (saleId) => {
         price: item.price,
     }));
 
-    renderTicketPreview(sale, cartItems, sale.payment_method);
+    renderTicketPreview(sale, cartItems, sale.payment_method,
+      (sale.surcharge_amount ? sale.total + sale.surcharge_amount : sale.total),
+      sale.surcharge_amount || 0
+    );
 
     const closeBtn = document.getElementById("btnSuccessClose");
     if (closeBtn) {
@@ -1740,6 +1944,12 @@ window.openCashSession = async () => {
   }
 
   currentCashSession = data;
+
+  // Cerrar modal de aviso si estaba abierto
+  const modal = document.getElementById('cashRequiredModal');
+  if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+  hideCashBanner();
+
   showToast('Caja abierta correctamente.', 'success');
   showCashState('operating');
   renderCashSessionMeta(data);
@@ -1756,35 +1966,69 @@ window.closeCashSession = async () => {
   const btn = document.getElementById('btnCloseCash');
   if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Cerrando...`; }
 
-  // Calcular total recaudado en efectivo para sugerencia de arqueo
+  // Calcular totales por medio de pago para el arqueo
   const { data: salesData } = await supabase
     .from('sales')
     .select('total, payment_method')
     .eq('session_id', currentCashSession.id)
     .neq('status', 'anulada');
 
-  const cashSales = (salesData || [])
+  const allSalesData = salesData || [];
+
+  const cashSales = allSalesData
     .filter(s => s.payment_method === 'Efectivo')
+    .reduce((acc, s) => acc + Number(s.total), 0);
+
+  const totalAllMethods = allSalesData
     .reduce((acc, s) => acc + Number(s.total), 0);
 
   const expectedCash = Number(currentCashSession.initial_amount) + cashSales;
 
-  const { error } = await supabase
+  // Construir breakdown por método para guardarlo
+  const byMethod = {};
+  allSalesData.forEach(s => {
+    const m = s.payment_method || 'Sin especificar';
+    byMethod[m] = (byMethod[m] || 0) + Number(s.total);
+  });
+
+  const closedAt = new Date().toISOString();
+  const sessionId = currentCashSession.id;
+
+  // UPDATE base — siempre existe
+  const { error: baseError } = await supabase
     .from('cash_sessions')
-    .update({
-      status: 'cerrada',
-      closed_at: new Date().toISOString(),
-      actual_amount: expectedCash,
-    })
-    .eq('id', currentCashSession.id);
+    .update({ status: 'cerrada', closed_at: closedAt })
+    .eq('id', sessionId);
 
   if (btn) { btn.disabled = false; btn.innerHTML = `<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> Cerrar Caja`; }
 
-  if (error) {
-    console.error('closeCashSession error:', error);
+  if (baseError) {
+    console.error('closeCashSession error:', baseError);
     showToast('Error al cerrar la caja. Intentá de nuevo.', 'error');
     return;
   }
+
+  // UPDATE extendido — columnas opcionales, falla silenciosamente si no existen aún
+  const { error: extError } = await supabase
+    .from('cash_sessions')
+    .update({
+      actual_amount: expectedCash,
+      total_amount: totalAllMethods,
+      payment_breakdown: byMethod,
+    })
+    .eq('id', sessionId);
+  if (extError) console.warn('closeCashSession campos extendidos (no crítico):', extError.message);
+
+  // Imprimir ticket de cierre de caja
+  printCashReport({
+    store: currentStore,
+    session: currentCashSession,
+    salesData: allSalesData,
+    byMethod,
+    totalAllMethods,
+    cashSales,
+    expectedCash,
+  });
 
   currentCashSession = null;
   showToast('Caja cerrada correctamente.', 'success');
@@ -1799,6 +2043,216 @@ window.closeCashSession = async () => {
   // Refrescar historial de cierres
   loadCashSessionsHistory();
 };
+
+// ===== TICKET DE CIERRE DE CAJA =====
+
+// Datos del último reporte generado (para imprimir desde modal)
+let _lastCashReportData = null;
+
+function printCashReport({ store, session, salesData, byMethod, totalAllMethods, cashSales, expectedCash }) {
+  const tz = { timeZone: 'America/Argentina/Buenos_Aires' };
+  const fmtTs = (ts) => {
+    if (!ts) return '—';
+    const raw = ts.endsWith('Z') || ts.includes('+') ? ts : ts + 'Z';
+    const d = new Date(raw);
+    return d.toLocaleDateString('es-AR', { ...tz, day: '2-digit', month: '2-digit', year: 'numeric' })
+      + ' ' + d.toLocaleTimeString('es-AR', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const openedStr = fmtTs(session.opened_at);
+  const closedStr = fmtTs(session.closed_at || new Date().toISOString());
+
+  let duracion = '';
+  if (session.opened_at) {
+    const openRaw = session.opened_at.endsWith('Z') || session.opened_at.includes('+') ? session.opened_at : session.opened_at + 'Z';
+    const closeRaw = session.closed_at
+      ? (session.closed_at.endsWith('Z') || session.closed_at.includes('+') ? session.closed_at : session.closed_at + 'Z')
+      : new Date().toISOString();
+    const diffMs = new Date(closeRaw) - new Date(openRaw);
+    const h = Math.floor(diffMs / 3600000);
+    const m = Math.floor((diffMs % 3600000) / 60000);
+    duracion = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  const initial = Number(session.initial_amount || 0);
+  const totalVentas = salesData.length;
+  const ticketProm = totalVentas > 0 ? Math.round(totalAllMethods / totalVentas) : 0;
+
+  let contactHtml = '';
+  if (store?.phone) contactHtml += store.phone;
+  if (store?.instagram) contactHtml += (contactHtml ? ' · ' : '') + `@${store.instagram.replace('@', '')}`;
+
+  // Breakdown rows para el ticket visual (inline styles, sin clases)
+  const breakdownRows = Object.entries(byMethod)
+    .sort((a, b) => b[1] - a[1])
+    .map(([method, total]) => {
+      const pct = totalAllMethods > 0 ? Math.round((total / totalAllMethods) * 100) : 0;
+      const count = salesData.filter(s => s.payment_method === method).length;
+      return `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#111;">${method}</div>
+          <div style="font-size:9.5px;color:#999;margin-top:1px;">${count} venta${count !== 1 ? 's' : ''} · ${pct}%</div>
+        </div>
+        <div style="font-size:13px;font-weight:800;color:#111;">$${Number(total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</div>
+      </div>`;
+    }).join('');
+
+  const logoHtml = store?.logo_url
+    ? `<div style="text-align:center;padding-top:18px;padding-bottom:6px;"><img src="${store.logo_url}" style="max-height:50px;max-width:130px;object-fit:contain;display:inline-block;"></div>`
+    : '';
+
+  const innerHtml = `
+    <div style="padding:0 20px;background:#fff;">
+      ${logoHtml}
+      <div style="text-align:center;padding-top:${store?.logo_url ? '6px' : '18px'};padding-bottom:4px;">
+        <div style="font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:#111;margin-bottom:4px;">${(store?.name || 'MI TIENDA').toUpperCase()}</div>
+        ${contactHtml ? `<div style="font-size:10px;color:#666;">${contactHtml}</div>` : ''}
+      </div>
+      <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+      <div style="text-align:center;margin-bottom:12px;">
+        <span style="font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.18em;color:#aaa;">Resumen de Cierre de Caja</span>
+      </div>
+      <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#aaa;margin-bottom:8px;">Datos del turno</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Apertura</span>
+        <span style="font-size:10.5px;font-weight:500;color:#222;">${openedStr}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Cierre</span>
+        <span style="font-size:10.5px;font-weight:500;color:#222;">${closedStr}</span>
+      </div>
+      ${duracion ? `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Duración</span><span style="font-size:10.5px;font-weight:500;color:#222;">${duracion}</span></div>` : ''}
+      <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+      <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#aaa;margin-bottom:8px;">Resumen de ventas</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+        <div style="background:#f7f7f7;border-radius:6px;padding:7px 9px;">
+          <div style="font-size:8.5px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Transacciones</div>
+          <div style="font-size:13px;font-weight:800;color:#111;margin-top:1px;">${totalVentas}</div>
+        </div>
+        <div style="background:#f7f7f7;border-radius:6px;padding:7px 9px;">
+          <div style="font-size:8.5px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Ticket promedio</div>
+          <div style="font-size:13px;font-weight:800;color:#111;margin-top:1px;">$${ticketProm.toLocaleString('es-AR')}</div>
+        </div>
+      </div>
+      <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+      <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#aaa;margin-bottom:8px;">Por medio de pago</div>
+      ${breakdownRows || '<div style="font-size:11px;color:#aaa;margin-bottom:8px;">Sin ventas registradas.</div>'}
+      <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+      <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#aaa;margin-bottom:8px;">Efectivo en caja</div>
+      <div style="background:#f0faf4;border-radius:6px;padding:9px 11px;margin-bottom:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
+          <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Fondo inicial</span>
+          <span style="font-size:11px;font-weight:600;color:#111;">$${initial.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
+          <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Ventas efectivo</span>
+          <span style="font-size:11px;font-weight:600;color:#111;">$${cashSales.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #cce8d6;padding-top:5px;margin-top:5px;">
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#2d7a4f;">Total en caja</span>
+          <span style="font-size:14px;font-weight:800;color:#1a6640;">$${expectedCash.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+        </div>
+      </div>
+      <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
+        <span style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#111;">Total vendido</span>
+        <span style="font-size:19px;font-weight:800;color:#111;">$${totalAllMethods.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+      </div>
+      <div style="text-align:center;padding-bottom:16px;">
+        <div style="font-size:10px;color:#aaa;">stockware.com.ar</div>
+      </div>
+    </div>
+  `;
+
+  // Poblar el área de captura del modal
+  const captureArea = document.getElementById('cashReportCaptureArea');
+  if (captureArea) captureArea.innerHTML = innerHtml;
+
+  // Guardar datos para reimpresión desde modal
+  _lastCashReportData = { store, session, salesData, byMethod, totalAllMethods, cashSales, expectedCash };
+
+  // Abrir el modal
+  const modal = document.getElementById('cashReportModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+window.closeCashReportModal = () => {
+  const modal = document.getElementById('cashReportModal');
+  if (modal) modal.classList.add('hidden');
+};
+
+// Imprimir desde el modal (abre ventana de impresión con el contenido del capture area)
+window.printCashReportFromModal = () => {
+  const captureArea = document.getElementById('cashReportCaptureArea');
+  if (!captureArea) return;
+  const paperSize = localStorage.getItem('pos_paper_size') || '80mm';
+  const paperW = paperSize === 'A4' ? '210mm' : paperSize;
+  const win = window.open('', '', 'width=420,height=700');
+  win.document.write(`
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cierre de Caja</title>
+    <style>
+      @page { size: ${paperW} auto; margin: 0; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #111; background: #fff; width: ${paperW}; max-width: ${paperW}; }
+      img { display: block; max-height: 50px; object-fit: contain; }
+    </style></head>
+    <body>${captureArea.innerHTML}</body></html>
+  `);
+  win.document.close();
+  win.focus();
+  win.onload = () => { setTimeout(() => { win.print(); win.close(); }, 500); };
+  setTimeout(() => { if (!win.closed) { win.print(); win.close(); } }, 2000);
+};
+
+// Copiar imagen del cierre desde el modal
+window.copyCashReportImage = async () => {
+  const btn = document.getElementById('btnCopyCashReport');
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = `<span class="animate-pulse text-xs">Copiando...</span>`;
+  btn.disabled = true;
+  const captureArea = document.getElementById('cashReportCaptureArea');
+  try {
+    const canvas = await html2canvas(captureArea, { scale: 3, backgroundColor: '#FFFFFF', useCORS: true, allowTaint: true, logging: false });
+    canvas.toBlob(async (blob) => {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        showToast('¡Imagen copiada!', 'success');
+      } catch (err) {
+        showToast('Tu navegador no permite copiar imágenes. Usá descargar.', 'warning');
+      } finally {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+      }
+    }, 'image/png');
+  } catch (e) {
+    showToast('Error al generar la imagen', 'error');
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+  }
+};
+
+// Descargar imagen del cierre desde el modal
+window.downloadCashReportImage = async () => {
+  const btn = document.getElementById('btnDownloadCashReport');
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = `<span class="animate-pulse text-xs">Generando...</span>`;
+  btn.disabled = true;
+  const captureArea = document.getElementById('cashReportCaptureArea');
+  try {
+    const canvas = await html2canvas(captureArea, { scale: 3, backgroundColor: '#FFFFFF', useCORS: true, allowTaint: true, logging: false });
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `CierreCaja_${Date.now()}.png`;
+    a.click();
+  } catch (e) {
+    showToast('Error al generar la imagen', 'error');
+  } finally {
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+  }
+};
+
 
 // Carga las ventas vinculadas a la sesión activa (solo métricas, sin lista)
 async function loadCashSessionSales(sessionId) {
@@ -1834,7 +2288,6 @@ async function loadCashSessionsHistory() {
   const listEl    = document.getElementById('cashHistoryList');
   const countEl   = document.getElementById('cashHistoryCount');
 
-  // Helper para cambiar estado
   const setCashHistoryState = (state) => {
     [loadingEl, emptyEl, wrapperEl].forEach(el => { if (el) el.classList.add('hidden'); });
     if (state === 'loading' && loadingEl) loadingEl.classList.remove('hidden');
@@ -1872,9 +2325,34 @@ async function loadCashSessionsHistory() {
     return;
   }
 
+  // Para sesiones sin total_amount, cargar ventas desde la BD
+  const sessionIds = sessions
+    .filter(s => s.total_amount == null)
+    .map(s => s.id);
+
+  let salesBySession = {};
+  if (sessionIds.length > 0) {
+    const { data: oldSales } = await supabase
+      .from('sales')
+      .select('session_id, total, payment_method')
+      .in('session_id', sessionIds)
+      .neq('status', 'anulada');
+
+    (oldSales || []).forEach(s => {
+      if (!salesBySession[s.session_id]) salesBySession[s.session_id] = [];
+      salesBySession[s.session_id].push(s);
+    });
+  }
+
   setCashHistoryState('data');
 
   const tz = { timeZone: 'America/Argentina/Buenos_Aires' };
+  const paymentBadgeColors = {
+    'Efectivo':          'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    'Transferencia':     'text-blue-400 bg-blue-500/10 border-blue-500/20',
+    'Tarjeta de Débito': 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    'Tarjeta de Crédito':'text-violet-400 bg-violet-500/10 border-violet-500/20',
+  };
 
   sessions.forEach(session => {
     const fmtTs = (ts) => {
@@ -1885,60 +2363,167 @@ async function loadCashSessionsHistory() {
         + ' ' + d.toLocaleTimeString('es-AR', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
     };
 
-    const openedStr  = fmtTs(session.opened_at);
-    const closedStr  = fmtTs(session.closed_at);
-    const initial    = Number(session.initial_amount || 0);
-    const actual     = Number(session.actual_amount  || 0);
-    // Calcular duración aproximada
+    const openedStr = fmtTs(session.opened_at);
+    const closedStr = fmtTs(session.closed_at);
+    const initial   = Number(session.initial_amount || 0);
+    const cashFinal = Number(session.actual_amount || 0); // efectivo en caja
+
+    // Total vendido (todos los medios)
+    let totalSold = 0;
+    let breakdown = session.payment_breakdown || null;
+
+    if (session.total_amount != null) {
+      totalSold = Number(session.total_amount);
+    } else {
+      // Calcular desde ventas cargadas
+      const relSales = salesBySession[session.id] || [];
+      totalSold = relSales.reduce((a, s) => a + Number(s.total), 0);
+      // Construir breakdown si no estaba guardado
+      if (!breakdown && relSales.length > 0) {
+        breakdown = {};
+        relSales.forEach(s => {
+          const m = s.payment_method || 'Sin especificar';
+          breakdown[m] = (breakdown[m] || 0) + Number(s.total);
+        });
+      }
+    }
+
+    // Duración
     let duracion = '';
     if (session.opened_at && session.closed_at) {
-      const openRaw   = session.opened_at.endsWith('Z') || session.opened_at.includes('+') ? session.opened_at : session.opened_at + 'Z';
-      const closeRaw  = session.closed_at.endsWith('Z') || session.closed_at.includes('+') ? session.closed_at : session.closed_at + 'Z';
-      const diffMs    = new Date(closeRaw) - new Date(openRaw);
-      const diffHrs   = Math.floor(diffMs / 3600000);
-      const diffMins  = Math.floor((diffMs % 3600000) / 60000);
+      const openRaw  = session.opened_at.endsWith('Z') || session.opened_at.includes('+') ? session.opened_at : session.opened_at + 'Z';
+      const closeRaw = session.closed_at.endsWith('Z') || session.closed_at.includes('+') ? session.closed_at : session.closed_at + 'Z';
+      const diffMs   = new Date(closeRaw) - new Date(openRaw);
+      const diffHrs  = Math.floor(diffMs / 3600000);
+      const diffMins = Math.floor((diffMs % 3600000) / 60000);
       duracion = diffHrs > 0 ? `${diffHrs}h ${diffMins}m` : `${diffMins}m`;
     }
 
+    // Breakdown HTML (para expandir)
+    const breakdownHtml = breakdown && Object.keys(breakdown).length > 0
+      ? Object.entries(breakdown)
+          .sort((a, b) => b[1] - a[1])
+          .map(([m, total]) => {
+            const cls = paymentBadgeColors[m] || 'text-slate-300 bg-slate-500/10 border-slate-500/20';
+            return `<div class="flex items-center justify-between py-1">
+              <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cls}">${m}</span>
+              <span class="text-xs font-bold text-white">$${Number(total).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+            </div>`;
+          }).join('')
+      : `<p class="text-xs text-slate-600 py-1">Sin desglose disponible.</p>`;
+
+    const detailId = `cash-hist-${session.id}`;
+
     const row = document.createElement('div');
+    row.className = 'border-b border-slate-800/50 last:border-0';
     row.innerHTML = `
-      <!-- Desktop -->
-      <div class="hidden md:grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-800/30 transition-colors">
-        <div class="col-span-3">
+      <!-- Fila principal (clickeable) -->
+      <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-800/30 transition-colors cursor-pointer group" onclick="toggleCashHistDetail('${session.id}')">
+        <div class="col-span-4 md:col-span-3">
           <p class="text-xs font-semibold text-white">${openedStr}</p>
-          ${duracion ? `<p class="text-[10px] text-slate-500 mt-0.5">${duracion} de turno</p>` : ''}
+          <p class="text-[10px] text-slate-500 mt-0.5">${closedStr}${duracion ? ' · ' + duracion : ''}</p>
         </div>
-        <div class="col-span-3">
-          <p class="text-xs text-slate-300">${closedStr}</p>
+        <div class="col-span-3 hidden md:block">
+          <p class="text-xs text-slate-400">Fondo inicial</p>
+          <p class="text-xs font-semibold text-slate-300">$${initial.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
         </div>
-        <div class="col-span-2">
-          <p class="text-xs text-slate-300">$${initial.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+        <div class="col-span-3 hidden md:block">
+          <p class="text-xs text-slate-400">Efectivo en caja</p>
+          <p class="text-xs font-semibold text-emerald-400">$${cashFinal.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
         </div>
-        <div class="col-span-2">
-          <p class="text-xs font-semibold text-emerald-400">$${actual.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
-        </div>
-        <div class="col-span-2 text-right">
-          <p class="text-sm font-black text-white">$${(actual - initial).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+        <div class="col-span-6 md:col-span-3 flex items-center justify-end gap-2">
+          <div class="text-right">
+            <p class="text-[10px] text-slate-500">Total vendido</p>
+            <p class="text-sm font-black text-indigo-400">$${totalSold.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+          </div>
+          <svg id="chev-hist-${session.id}" class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-all flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </div>
       </div>
-      <!-- Mobile -->
-      <div class="md:hidden px-4 py-3">
-        <div class="flex items-center justify-between mb-1">
-          <div>
-            <p class="text-xs font-semibold text-white">${openedStr}</p>
-            <p class="text-[10px] text-slate-500">${closedStr}${duracion ? ' · ' + duracion : ''}</p>
+      <!-- Detalle expandible -->
+      <div id="${detailId}" class="hidden px-4 pb-4 pt-1 bg-slate-800/20">
+        <div class="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Desglose por medio de pago</p>
+          <div class="divide-y divide-slate-800/50">${breakdownHtml}</div>
+          <div class="mt-3 pt-2.5 border-t border-slate-700 grid grid-cols-3 gap-2 text-center md:hidden">
+            <div>
+              <p class="text-[10px] text-slate-500">Fondo</p>
+              <p class="text-xs font-bold text-slate-300">$${initial.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-500">Efectivo</p>
+              <p class="text-xs font-bold text-emerald-400">$${cashFinal.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-500">Total</p>
+              <p class="text-xs font-bold text-indigo-400">$${totalSold.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+            </div>
           </div>
-          <p class="text-sm font-black text-white">$${(actual - initial).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
-        </div>
-        <div class="flex gap-3 mt-1.5">
-          <span class="text-[10px] text-slate-400">Fondo: <span class="text-slate-300 font-semibold">$${initial.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span></span>
-          <span class="text-[10px] text-slate-400">Efectivo: <span class="text-emerald-400 font-semibold">$${actual.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span></span>
+          <!-- Botón reimprimir -->
+          <button onclick="reprintCashReport('${session.id}')" class="mt-3 w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold py-2 rounded-lg transition-all active:scale-95">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Imprimir resumen
+          </button>
         </div>
       </div>
     `;
     listEl.appendChild(row);
   });
 }
+
+window.toggleCashHistDetail = (id) => {
+  const detail = document.getElementById(`cash-hist-${id}`);
+  const chev   = document.getElementById(`chev-hist-${id}`);
+  if (!detail) return;
+  const hidden = detail.classList.toggle('hidden');
+  if (chev) chev.style.transform = hidden ? '' : 'rotate(180deg)';
+};
+
+// Reimprimir resumen de cierre desde el historial
+window.reprintCashReport = async (sessionId) => {
+  const { data: session, error: sessErr } = await supabase
+    .from('cash_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .single();
+  if (sessErr || !session) { showToast('No se pudo cargar la sesión.', 'error'); return; }
+
+  const { data: salesData } = await supabase
+    .from('sales')
+    .select('total, payment_method')
+    .eq('session_id', sessionId)
+    .neq('status', 'anulada');
+
+  const allSalesData = salesData || [];
+
+  let byMethod = session.payment_breakdown || {};
+  if (!session.payment_breakdown || Object.keys(byMethod).length === 0) {
+    byMethod = {};
+    allSalesData.forEach(s => {
+      const m = s.payment_method || 'Sin especificar';
+      byMethod[m] = (byMethod[m] || 0) + Number(s.total);
+    });
+  }
+
+  const cashSales = allSalesData
+    .filter(s => s.payment_method === 'Efectivo')
+    .reduce((acc, s) => acc + Number(s.total), 0);
+
+  const totalAllMethods = session.total_amount != null
+    ? Number(session.total_amount)
+    : allSalesData.reduce((acc, s) => acc + Number(s.total), 0);
+
+  const expectedCash = Number(session.initial_amount || 0) + cashSales;
+
+  printCashReport({
+    store: currentStore,
+    session,
+    salesData: allSalesData,
+    byMethod,
+    totalAllMethods,
+    cashSales,
+    expectedCash,
+  });
+};
 
 function renderCashKPIs(sales) {
   const total = sales.reduce((a, s) => a + Number(s.total), 0);
@@ -1954,7 +2539,7 @@ function renderCashBreakdown(sales) {
   const container = document.getElementById('cashPaymentBreakdown');
   if (!container) return;
   if (sales.length === 0) {
-    container.innerHTML = '<p class="text-xs text-slate-600">Sin ventas en este período.</p>';
+    container.innerHTML = '<p class="text-xs text-slate-600">Sin ventas en este turno.</p>';
     return;
   }
   const byMethod = {};
@@ -1966,30 +2551,30 @@ function renderCashBreakdown(sales) {
   });
   const grandTotal = sales.reduce((a, s) => a + Number(s.total), 0);
   const paymentColors = {
-    'Efectivo': 'bg-emerald-500',
-    'Transferencia': 'bg-blue-500',
-    'Tarjeta de Débito': 'bg-amber-500',
-    'Tarjeta de Crédito': 'bg-violet-500',
+    'Efectivo':          { bar: 'bg-emerald-500', badge: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+    'Transferencia':     { bar: 'bg-blue-500',    badge: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+    'Tarjeta de Débito': { bar: 'bg-amber-500',   badge: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+    'Tarjeta de Crédito':{ bar: 'bg-violet-500',  badge: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
   };
   container.innerHTML = Object.entries(byMethod)
     .sort((a, b) => b[1].total - a[1].total)
     .map(([method, data]) => {
       const pct = grandTotal > 0 ? Math.round((data.total / grandTotal) * 100) : 0;
-      const barColor = paymentColors[method] || 'bg-slate-500';
+      const cfg = paymentColors[method] || { bar: 'bg-slate-500', badge: 'text-slate-300 bg-slate-500/10 border-slate-500/20' };
       return `
-        <div>
-          <div class="flex justify-between items-center mb-1">
+        <div class="bg-slate-800/40 rounded-xl p-3 border border-slate-700/50">
+          <div class="flex justify-between items-center mb-2">
             <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold text-slate-300">${method}</span>
+              <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cfg.badge}">${method}</span>
               <span class="text-[10px] text-slate-500">${data.count} venta${data.count !== 1 ? 's' : ''}</span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
               <span class="text-[10px] text-slate-500">${pct}%</span>
-              <span class="text-xs font-bold text-white">$${data.total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
+              <span class="text-sm font-black text-white">$${data.total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</span>
             </div>
           </div>
           <div class="w-full bg-slate-800 rounded-full h-1.5">
-            <div class="${barColor} h-1.5 rounded-full transition-all duration-500" style="width:${pct}%"></div>
+            <div class="${cfg.bar} h-1.5 rounded-full transition-all duration-500" style="width:${pct}%"></div>
           </div>
         </div>`;
     }).join('');
