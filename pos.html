@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>POS Terminal - Stockware</title>
+  <title>Stockware - POS</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -191,7 +191,7 @@
 
         <button onclick="switchView('pos'); closeSidebar();" id="nav-pos" class="w-full flex items-center gap-2.5 px-3 py-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg text-sm font-medium border border-indigo-500/20 transition-all">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-          Terminal POS
+          Punto de venta
         </button>
 
         <button onclick="switchView('products'); closeSidebar();" id="nav-products" class="w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm font-medium border border-transparent transition-all">
@@ -212,9 +212,13 @@
     </div>
 
     <div class="p-3 border-t border-slate-800">
-      <button onclick="switchView('config'); closeSidebar();" id="nav-config" class="w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm font-medium border border-transparent transition-all mb-2">
+      <button onclick="switchView('config'); closeSidebar();" id="nav-config" class="w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm font-medium border border-transparent transition-all mb-1.5">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
         Configuración
+      </button>
+      <button onclick="switchView('support'); closeSidebar();" id="nav-support" class="w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm font-medium border border-transparent transition-all mb-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        Soporte
       </button>
       <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
         <p class="text-[10px] text-slate-500 mb-0.5">Tu tienda</p>
@@ -249,6 +253,20 @@
           <span id="cartBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-indigo-500 rounded-full text-[9px] font-bold text-white items-center justify-center">0</span>
         </button>
       </header>
+
+      <!-- Banner sutil: caja no abierta -->
+      <div id="cashClosedBanner" class="hidden flex-shrink-0 bg-amber-500/8 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2 min-w-0">
+          <svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          <p class="text-xs text-amber-300/90 font-medium truncate">Caja no abierta — recordá cargar el monto inicial antes de empezar a vender</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="goToCashFromModal()" class="text-[11px] font-semibold text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-2.5 py-1 rounded-lg transition-all">Abrir caja</button>
+          <button onclick="dismissCashRequired()" class="text-slate-500 hover:text-slate-300 transition p-0.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
 
       <div class="flex-1 flex overflow-hidden min-h-0 flex-col md:flex-row">
 
@@ -297,6 +315,72 @@
                   <option value="Otros">Otros</option>
                 </select>
               </div>
+
+              <!-- ===== GESTIÓN DE EXTRAS / RECARGO POSNET ===== -->
+              <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl overflow-hidden">
+                <!-- Header colapsable -->
+                <button onclick="toggleSurchargePanel()" class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-700/30 transition-colors group">
+                  <div class="flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    <span class="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">Recargo / Extra</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span id="surchargePreviewBadge" class="hidden text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full"></span>
+                    <svg id="surchargeChevron" class="w-3.5 h-3.5 text-slate-500 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </div>
+                </button>
+                <!-- Panel expandible -->
+                <div id="surchargePanel" class="hidden border-t border-slate-700/60 px-3 pb-3 pt-2.5 space-y-2.5">
+                  <p class="text-[10px] text-slate-500 leading-relaxed">El recargo no queda en tu caja — es la comisión del posnet (ej. Mercado Pago). Se suma al total del cliente pero se registra por separado.</p>
+                  <div class="flex items-center gap-2">
+                    <div class="flex-1">
+                      <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Recargo %</label>
+                      <div class="relative">
+                        <input
+                          type="number"
+                          id="surchargePercent"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          placeholder="0"
+                          oninput="updateSurcharge()"
+                          class="w-full pr-6 pl-2.5 py-2 bg-slate-900 border border-slate-600 text-white text-sm font-bold rounded-lg outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 transition placeholder-slate-600"
+                        >
+                        <span class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>
+                      </div>
+                    </div>
+                    <div class="flex gap-1 pt-4">
+                      <button onclick="setSurchargeQuick(5)" class="px-2 py-1.5 text-[10px] font-bold bg-slate-700 hover:bg-amber-500/20 hover:text-amber-300 hover:border-amber-500/30 border border-slate-600 text-slate-300 rounded-lg transition-all">5%</button>
+                      <button onclick="setSurchargeQuick(10)" class="px-2 py-1.5 text-[10px] font-bold bg-slate-700 hover:bg-amber-500/20 hover:text-amber-300 hover:border-amber-500/30 border border-slate-600 text-slate-300 rounded-lg transition-all">10%</button>
+                      <button onclick="setSurchargeQuick(15)" class="px-2 py-1.5 text-[10px] font-bold bg-slate-700 hover:bg-amber-500/20 hover:text-amber-300 hover:border-amber-500/30 border border-slate-600 text-slate-300 rounded-lg transition-all">15%</button>
+                    </div>
+                  </div>
+                  <!-- Desglose -->
+                  <div id="surchargeBreakdown" class="hidden bg-slate-900/60 rounded-lg px-3 py-2 space-y-1">
+                    <div class="flex justify-between text-[10px]">
+                      <span class="text-slate-400">Subtotal (tu ingreso)</span>
+                      <span id="surchargeBase" class="font-semibold text-white">$0</span>
+                    </div>
+                    <div class="flex justify-between text-[10px]">
+                      <span class="text-amber-400/80">Recargo posnet</span>
+                      <span id="surchargeAmount" class="font-semibold text-amber-400">+$0</span>
+                    </div>
+                    <div class="h-px bg-slate-700/60 my-0.5"></div>
+                    <div class="flex justify-between text-[10px]">
+                      <span class="text-slate-300 font-bold">Cliente paga</span>
+                      <span id="surchargeFinalTotal" class="font-black text-indigo-400">$0</span>
+                    </div>
+                  </div>
+                  <!-- Botón limpiar -->
+                  <button onclick="clearSurcharge()" class="w-full text-[10px] text-slate-500 hover:text-red-400 transition-colors py-1">✕ Quitar recargo</button>
+                </div>
+              </div>
+              <!-- ===== FIN RECARGO ===== -->
+
               <button id="btnCheckout" onclick="checkout()" disabled class="w-full bg-slate-700 text-slate-500 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed" style="pointer-events:none">
                 Finalizar compra
               </button>
@@ -364,6 +448,29 @@
               <option value="Tarjeta de Crédito">Crédito</option>
               <option value="Otros">Otros</option>
             </select>
+          </div>
+          <!-- Recargo mobile (compacto) -->
+          <div class="flex items-center gap-2 bg-slate-800/50 border border-slate-700/60 rounded-xl px-3 py-2">
+            <svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            </svg>
+            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex-shrink-0">Recargo</span>
+            <div class="relative flex-1">
+              <input
+                type="number"
+                id="surchargePercentMobile"
+                min="0" max="100" step="0.1"
+                placeholder="0"
+                oninput="updateSurchargeMobile()"
+                class="w-full pr-5 pl-2 py-1.5 bg-slate-900 border border-slate-600 text-white text-xs font-bold rounded-lg outline-none focus:ring-1 focus:ring-amber-500 transition placeholder-slate-600"
+              >
+              <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px] font-bold">%</span>
+            </div>
+            <div class="flex gap-1">
+              <button onclick="setSurchargeQuickMobile(5)" class="px-1.5 py-1 text-[10px] font-bold bg-slate-700 hover:bg-amber-500/20 hover:text-amber-300 border border-slate-600 text-slate-400 rounded-lg transition-all">5</button>
+              <button onclick="setSurchargeQuickMobile(10)" class="px-1.5 py-1 text-[10px] font-bold bg-slate-700 hover:bg-amber-500/20 hover:text-amber-300 border border-slate-600 text-slate-400 rounded-lg transition-all">10</button>
+              <button onclick="clearSurchargeMobile()" class="px-1.5 py-1 text-[10px] font-bold bg-slate-700 hover:bg-red-500/20 hover:text-red-400 border border-slate-600 text-slate-500 rounded-lg transition-all">✕</button>
+            </div>
           </div>
           <button id="btnCheckoutMobile" onclick="checkoutMobile()" disabled class="w-full bg-slate-700 text-slate-500 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed" style="pointer-events:none">
             Finalizar compra
@@ -570,11 +677,10 @@
             <!-- Tabla (header + filas) -->
             <div id="cashHistoryTableWrapper" class="hidden">
               <div id="cashHistoryTableHeader" class="hidden md:grid grid-cols-12 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                <span class="col-span-3">Apertura</span>
-                <span class="col-span-3">Cierre</span>
-                <span class="col-span-2">Fondo inicial</span>
-                <span class="col-span-2">Efectivo final</span>
-                <span class="col-span-2 text-right">Total vendido</span>
+                <span class="col-span-3">Apertura / Cierre</span>
+                <span class="col-span-3">Fondo inicial</span>
+                <span class="col-span-3">Efectivo en caja</span>
+                <span class="col-span-3 text-right">Total vendido</span>
               </div>
               <!-- Filas -->
               <div id="cashHistoryList" class="divide-y divide-slate-800/50"></div>
@@ -635,14 +741,14 @@
             <p id="cash-kpi-initial" class="text-xl md:text-2xl font-black text-slate-300">$0</p>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 md:p-4">
-            <p class="text-[9px] md:text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">Efectivo esperado</p>
+            <p class="text-[9px] md:text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">Efectivo en caja</p>
             <p id="cash-kpi-cash-expected" class="text-xl md:text-2xl font-black text-emerald-400">$0</p>
           </div>
         </div>
 
         <!-- Desglose por método de pago -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5">
-          <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Desglose por método de pago</h3>
+          <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Ventas por método de pago</h3>
           <div id="cashPaymentBreakdown" class="space-y-2">
             <p class="text-xs text-slate-600">Sin ventas en este turno.</p>
           </div>
@@ -795,6 +901,111 @@
       </div>
     </div>
 
+    <!-- ===== SOPORTE VIEW ===== -->
+    <div id="supportView" class="hidden flex-1 flex flex-col h-full overflow-hidden fade-in">
+      <div class="flex-shrink-0 p-3 md:p-6 pb-0 md:pb-0">
+        <div class="flex items-center gap-3 mb-6">
+          <button onclick="openSidebar()" class="md:hidden flex items-center justify-center w-8 h-8 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div>
+            <h2 class="text-base md:text-xl font-bold text-white">Soporte</h2>
+            <p class="text-xs text-slate-400 mt-0.5 hidden md:block">Canales de contacto y asistencia.</p>
+          </div>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto px-3 pb-6 md:px-6 md:pb-6 min-h-0">
+        <div class="max-w-2xl space-y-4">
+
+          <!-- WhatsApp -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <div class="flex items-start gap-4">
+              <div class="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <h3 class="text-sm font-bold text-white">WhatsApp</h3>
+                  <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">Recomendado</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-3">La forma más rápida de contactarnos. Respondemos en minutos.</p>
+                <div class="flex flex-wrap gap-2">
+                  <a href="https://wa.me/5493644539325?text=Hola%2C%20necesito%20ayuda%20con%20Stockware" target="_blank" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-white font-semibold py-2 px-4 rounded-xl transition-all text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    Abrir WhatsApp
+                  </a>
+                  <button onclick="copyText('+54 9 3644 539325')" class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-medium py-2 px-4 rounded-xl transition-all text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    +54 9 3644 539325
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Usos comunes -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              ¿Para qué podés contactarnos?
+            </h3>
+            <div class="space-y-2">
+              <div class="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 cursor-pointer hover:border-indigo-500/30 transition-all group" onclick="openWhatsApp('Hola%2C%20quiero%20informar%20un%20pago%20de%20mi%20suscripci%C3%B3n%20de%20Stockware')">
+                <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">Informar un pago</p>
+                  <p class="text-[11px] text-slate-500">Enviaste una transferencia y querés que lo activemos</p>
+                </div>
+                <svg class="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </div>
+
+              <div class="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 cursor-pointer hover:border-indigo-500/30 transition-all group" onclick="openWhatsApp('Hola%2C%20quiero%20pedir%20m%C3%A1s%20d%C3%ADas%20de%20servicio%20antes%20de%20que%20venza%20mi%20suscripci%C3%B3n%20de%20Stockware')">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">Pedir más días</p>
+                  <p class="text-[11px] text-slate-500">Solicitá una extensión antes de que venza el plan</p>
+                </div>
+                <svg class="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </div>
+
+              <div class="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 cursor-pointer hover:border-indigo-500/30 transition-all group" onclick="openWhatsApp('Hola%2C%20quiero%20renovar%20mi%20suscripci%C3%B3n%20de%20Stockware%20antes%20del%20vencimiento')">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">Renovar antes de tiempo</p>
+                  <p class="text-[11px] text-slate-500">Pagá anticipadamente para no cortar el servicio</p>
+                </div>
+                <svg class="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </div>
+
+              <div class="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 cursor-pointer hover:border-indigo-500/30 transition-all group" onclick="openWhatsApp('Hola%2C%20tengo%20un%20problema%20t%C3%A9cnico%20con%20Stockware%20y%20necesito%20ayuda')">
+                <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">Problema técnico</p>
+                  <p class="text-[11px] text-slate-500">Algo no funciona como esperabas</p>
+                </div>
+                <svg class="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nota -->
+          <div class="bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-3 flex items-start gap-3">
+            <svg class="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-xs text-slate-400 leading-relaxed">Horario de atención: lunes a viernes de 9 a 20 hs. Los mensajes fuera de ese horario son respondidos al día siguiente hábil.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <div id="variantModal" class="fixed inset-0 bg-[#0B1120]/80 backdrop-blur-sm hidden flex items-end md:items-center justify-center z-50">
@@ -877,47 +1088,79 @@
       <p class="text-xs text-slate-400 mt-1">Comprobante de la operación.</p>
     </div>
 
-    <!-- Contenedor del Ticket -->
-    <div id="ticketCaptureArea" class="bg-white text-slate-800 p-6 w-full max-w-[300px] font-mono text-[11px] leading-tight shadow-2xl mb-8 rounded-md relative selection:bg-indigo-100">
-      <!-- Detalle superior de color -->
-      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500"></div>
+    <!-- Contenedor del Ticket — Diseño térmico limpio -->
+    <div id="ticketCaptureArea" style="background:#fff;width:300px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#111;margin-bottom:32px;filter:drop-shadow(0 8px 32px rgba(0,0,0,0.18));">
 
-      <!-- Cabecera del comercio -->
-      <div class="text-center mb-5 border-b border-dashed border-slate-300 pb-4">
-        <div id="tkLogoWrapper" class="hidden mb-3 flex justify-center">
-          <img id="tkLogo" src="" alt="Logo" class="max-h-12 max-w-[120px] object-contain mx-auto">
+
+      <!-- Cuerpo del ticket -->
+      <div style="background:#fff;padding:0 20px;">
+
+        <!-- Logo -->
+        <div id="tkLogoWrapper" class="hidden" style="display:flex;justify-content:center;padding-top:18px;margin-bottom:6px;">
+          <img id="tkLogo" src="" alt="Logo" style="max-height:52px;max-width:130px;object-fit:contain;display:block;filter:none;">
         </div>
-        <h2 id="tkStoreName" class="font-black text-lg uppercase tracking-tight leading-none mb-1.5 text-slate-900">NOMBRE DEL LOCAL</h2>
-        <p id="tkStoreContact" class="text-[10px] text-slate-600 leading-tight font-medium"></p>
-        <p id="tkStoreAddress" class="text-[10px] text-slate-500 leading-tight mt-0.5"></p>
-        <div class="inline-block bg-slate-100 text-slate-500 text-[9px] uppercase tracking-wider px-2 py-1 rounded mt-3 font-semibold">No válido como factura</div>
-      </div>
 
-      <!-- Datos de la transacción -->
-      <div class="border-b border-dashed border-slate-300 pb-3 mb-3 font-medium space-y-1.5 text-slate-700">
-        <div class="flex justify-between"><span class="font-bold text-slate-900">FECHA:</span> <span id="tkDate"></span></div>
-        <div class="flex justify-between"><span class="font-bold text-slate-900">TICKET:</span> <span id="tkId"></span></div>
-        <div class="flex justify-between"><span class="font-bold text-slate-900">PAGO:</span> <span id="tkPayment" class="uppercase"></span></div>
-      </div>
-
-      <!-- Ítems -->
-      <div class="border-b border-dashed border-slate-300 pb-3 mb-3">
-        <div class="flex justify-between font-bold mb-2 uppercase text-[10px] text-slate-400 tracking-wider">
-          <span>Cant / Desc</span><span>Monto</span>
+        <!-- Nombre tienda -->
+        <div style="text-align:center;padding-top:18px;padding-bottom:4px;">
+          <h2 id="tkStoreName" style="font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:#111;margin:0 0 5px;line-height:1.1;">NOMBRE DEL LOCAL</h2>
+          <p id="tkStoreContact" style="font-size:10.5px;color:#555;line-height:1.5;margin:0;font-weight:400;"></p>
+          <p id="tkStoreAddress" style="font-size:10px;color:#888;line-height:1.4;margin:2px 0 0;"></p>
         </div>
-        <div id="tkItems" class="space-y-1.5 font-medium text-slate-700"></div>
+
+        <!-- Separador punteado -->
+        <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+
+        <!-- Badge -->
+        <div style="text-align:center;margin-bottom:12px;">
+          <span style="font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.18em;color:#aaa;">Comprobante no válido como factura</span>
+        </div>
+
+        <!-- Datos -->
+        <div style="margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Fecha</span>
+            <span id="tkDate" style="font-size:11px;font-weight:500;color:#222;"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">N° Ticket</span>
+            <span id="tkId" style="font-size:11px;font-weight:800;color:#111;letter-spacing:0.05em;"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Medio de pago</span>
+            <span id="tkPayment" style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;"></span>
+          </div>
+        </div>
+
+        <!-- Separador punteado -->
+        <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+
+        <!-- Encabezado ítems -->
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#aaa;">Artículo</span>
+          <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#aaa;">Precio</span>
+        </div>
+
+        <!-- Ítems -->
+        <div id="tkItems" style="color:#111;margin-bottom:4px;"></div>
+
+        <!-- Separador punteado -->
+        <div style="border-top:1.5px dashed #ccc;margin:12px 0;"></div>
+
+        <!-- Total -->
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
+          <span style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#111;">TOTAL</span>
+          <span id="tkTotal" style="font-size:18px;font-weight:800;color:#111;letter-spacing:-0.01em;"></span>
+        </div>
+
+        <!-- Gracias -->
+        <div style="text-align:center;padding-bottom:16px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.18em;color:#111;margin:0 0 10px;">¡Gracias por tu compra!</p>
+          <p style="font-size:10px;color:#aaa;margin:0;letter-spacing:0.02em;">stockware.com.ar</p>
+        </div>
+
       </div>
 
-      <!-- Total -->
-      <div class="flex justify-between font-black text-lg mb-5 pt-1 text-slate-900">
-        <span>TOTAL</span><span id="tkTotal"></span>
-      </div>
 
-      <!-- Pie de página -->
-      <div class="text-center mt-2 pt-4 relative">
-        <p class="text-xs font-bold text-slate-800 mb-0.5">¡Gracias por tu compra!</p>
-        <p class="text-[9px] text-slate-400">Powered by <span class="font-bold text-slate-500">Stockware.com.ar</span></p>
-      </div>
     </div>
 
     <!-- Botonera -->
@@ -951,6 +1194,52 @@
 
   </div>
 </div>
+
+  <!-- ===== MODAL CIERRE DE CAJA ===== -->
+  <div id="cashReportModal" class="fixed inset-0 bg-[#0B1120]/85 backdrop-blur-md hidden flex items-end md:items-center justify-center z-[100] p-4 sm:p-0 transition-all duration-300">
+    <div class="bg-slate-900 border border-slate-700/60 rounded-3xl p-6 md:p-8 w-full md:max-w-md shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] flex flex-col items-center max-h-[95vh] overflow-y-auto animate-[fadeIn_0.3s_ease-out]">
+
+      <!-- Encabezado -->
+      <div class="flex flex-col items-center mb-6">
+        <div class="w-14 h-14 bg-indigo-500/10 border border-indigo-500/20 rounded-full flex items-center justify-center mb-3 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+          <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <h3 class="text-xl font-bold text-white tracking-tight">Cierre de Caja</h3>
+        <p class="text-xs text-slate-400 mt-1">Resumen del turno.</p>
+      </div>
+
+      <!-- Área de captura del ticket de cierre -->
+      <div id="cashReportCaptureArea" style="background:#fff;width:300px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#111;margin-bottom:32px;filter:drop-shadow(0 8px 32px rgba(0,0,0,0.18));border-radius:4px;overflow:hidden;">
+        <!-- Poblado dinámicamente por JS -->
+      </div>
+
+      <!-- Botonera -->
+      <div class="w-full space-y-3 mt-auto">
+        <div class="grid grid-cols-3 gap-2 sm:gap-3">
+
+          <button onclick="printCashReportFromModal()" class="flex flex-col items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white py-2.5 rounded-xl font-medium border border-slate-600/50 shadow-lg transition-all text-xs sm:text-sm active:scale-95 group">
+            <svg class="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Imprimir
+          </button>
+
+          <button id="btnCopyCashReport" onclick="copyCashReportImage()" class="flex flex-col items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl font-medium shadow-[0_0_15px_rgba(37,99,235,0.2)] transition-all text-xs sm:text-sm active:scale-95">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            Copiar
+          </button>
+
+          <button id="btnDownloadCashReport" onclick="downloadCashReportImage()" class="flex flex-col items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2.5 rounded-xl font-bold shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all text-xs sm:text-sm active:scale-95">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Descargar
+          </button>
+
+        </div>
+        <button onclick="closeCashReportModal()" class="w-full bg-transparent hover:bg-slate-800/50 text-slate-400 hover:text-white py-3 rounded-xl font-medium border border-transparent transition-all active:scale-95 text-sm">
+          Cerrar
+        </button>
+      </div>
+
+    </div>
+  </div>
 
   <div id="editProductModal" class="fixed inset-0 bg-[#0B1120]/80 backdrop-blur-sm hidden flex items-end md:items-center justify-center z-50">
     <div class="bg-slate-900 border border-slate-700 rounded-t-2xl md:rounded-2xl w-full md:max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl fade-in">
